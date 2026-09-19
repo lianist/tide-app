@@ -22,7 +22,7 @@ Claude Code가 이 저장소에서 작업할 때 참고하는 가이드다.
 
 | 영역 | 기술 |
 |---|---|
-| App | Flutter (Dart) · macOS 데스크톱 우선 |
+| App | Flutter **3.47.5** (stable) · Dart 3.13.4 · macOS 데스크톱 우선 |
 | Backend | 없음 — Dochi API만 호출 |
 
 상태 관리·라우팅·HTTP 클라이언트 선택은 스캐폴딩 시점에 정하고 `docs/02-Architecture.md`에 근거와 함께 고정한다.
@@ -50,7 +50,7 @@ flutter test
 
 ## 환경
 
-- Flutter SDK는 Homebrew cask로 설치한다 (`brew install --cask flutter`).
+- Flutter SDK는 Homebrew cask로 설치돼 있다 (`/opt/homebrew/share/flutter`, `flutter`·`dart`는 `/opt/homebrew/bin`). `macos-desktop`은 활성화 완료.
 - **macOS 빌드에는 Xcode가 필요하다.** CLT만으로는 안 된다. 설치 절차는 `README.md` 참고.
 - Xcode가 없어도 `flutter create` · `analyze` · `test`는 동작한다. 빌드가 막혀도 코드 작업은 진행할 수 있다.
 
