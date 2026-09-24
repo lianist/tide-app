@@ -44,3 +44,4 @@ app.*.map.json
 # env
 .env
 .env*.local
+.dist-scratch/
