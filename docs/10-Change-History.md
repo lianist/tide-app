@@ -30,3 +30,9 @@
 - **창을 닫아도, `⌘Q`로 꺼도 앱이 종료되지 않는다** — 전역 캡처 단축키가 창이 아니라 프로세스에 등록돼 있어서, 종료되면 단축키도 함께 죽는다(사용자 결정, 2026-09-24: 일반적인 Mac 앱 관례와 다르게 `⌘Q`도 의도적으로 종료하지 않는다). `AppDelegate.applicationShouldTerminateAfterLastWindowClosed`가 `false`를 돌려주고 `MainFlutterWindow.isReleasedWhenClosed = false`로 창 객체를 살려 두며, `applicationShouldTerminate`를 오버라이드해 `⌘Q`·Dock의 "Quit"까지 가로채 창만 숨긴다. Dock 아이콘을 다시 누르면 `applicationShouldHandleReopen`이 숨겨 둔 창을 되살린다.
   - 이제 앱을 실제로 끌 방법이 없어지므로, 앱 메뉴에 **"Quit Tide Completely"(⌘⌥Q)**를 코드로 추가했다 — 이것만 진짜 종료로 이어진다. 표준 "Quit Tide"(⌘Q) 항목의 문구는 그대로 두었다(더 이상 실제로 종료하지 않지만, XIB를 손대지 않고는 라벨을 못 바꾼다).
 - **캡처 결과를 macOS 알림(Notification Center)으로 띄운다** — 창이 닫혀 있으면 인앱 스낵바는 아무도 못 본다. `flutter_local_notifications`로 교체했고(`NotificationService`), 첫 실행에 알림 권한을 요청한다. 여러 건이 생성되면 그만큼 알림도 여러 개 뜬다(`api.md`의 "건마다 알림" 그대로).
+
+## 2026-09-24 — 재서명할 때마다 권한을 다시 묻는 문제를 해결
+
+`flutter build macos --release`는 ad-hoc 서명이라, 빌드할 때마다 macOS가 다른 앱으로 인식해 화면 기록·손쉬운 사용 권한을 매번 다시 물었다(TCC는 정체성을 코드 서명으로 구분한다). 처음엔 이 머신 로그인 키체인에 자체 서명 인증서("Tide Local Dev")를 만들어 매 빌드 뒤 수동으로 재서명하는 우회로 막았는데, 사용자가 Apple Developer 계정이 있다고 해서 더 나은 방법으로 바꿨다.
+
+**진짜 원인은 따로 있었다.** 프로젝트 레벨 빌드 설정에 `CODE_SIGN_IDENTITY = "-"`(Flutter 기본 템플릿 값)가 박혀 있어서, Xcode에서 팀을 고르고 "Automatically manage signing"을 켜도 타겟의 `CODE_SIGN_STYLE = Automatic`을 이 값이 덮어써 계속 ad-hoc으로 서명됐다. 세 군데(Debug/Release/Profile 프로젝트 설정)에서 그 줄을 지우자 타겟 설정(`DEVELOPMENT_TEAM = WB5PG6BWM2`)이 제대로 먹혀 실제 "Apple Development" 인증서로 서명된다(`codesign -dv`의 `TeamIdentifier=WB5PG6BWM2`로 확인). 자체 서명 인증서는 이제 안 쓴다 — 진짜 팀 서명이 훨씬 안정적이고, 나중에 배포용 노터라이즈도 이 경로로만 가능하다.

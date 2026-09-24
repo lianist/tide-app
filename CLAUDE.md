@@ -53,7 +53,7 @@ flutter test
 - Flutter SDK는 Homebrew cask로 설치돼 있다 (`/opt/homebrew/share/flutter`, `flutter`·`dart`는 `/opt/homebrew/bin`). `macos-desktop`은 활성화 완료.
 - **macOS 빌드에는 Xcode가 필요하다.** CLT만으로는 안 된다. 설치 절차는 `README.md` 참고.
 - Xcode가 없어도 `flutter create` · `analyze` · `test`는 동작한다. 빌드가 막혀도 코드 작업은 진행할 수 있다.
-- 🔑 **배포용으로 빌드할 때는 항상 서명한다.** `flutter build macos --release`는 기본적으로 ad-hoc 서명(`CODE_SIGN_IDENTITY = "-"`)이라, 다시 빌드할 때마다 macOS가 다른 앱으로 봐서 화면 기록·손쉬운 사용 권한을 매번 다시 물어본다. 이 머신 로그인 키체인에 안정된 자체 서명 인증서("Tide Local Dev")가 있다 — 빌드 뒤 `codesign --force --deep --sign "Tide Local Dev" <path>/Tide.app`을 돌리면 재서명해도 정체성이 그대로라 권한이 유지된다.
+- 🔑 **`Runner` 타겟은 실제 Apple Developer 팀(`WB5PG6BWM2`)의 Automatic Signing으로 서명된다** (2026-09-24). 프로젝트 레벨 빌드 설정에 남아 있던 `CODE_SIGN_IDENTITY = "-"`(ad-hoc, Flutter 기본값)가 타겟의 `CODE_SIGN_STYLE = Automatic`을 덮어써서 매번 다른 정체성으로 서명되는 바람에, 빌드할 때마다 macOS가 화면 기록·손쉬운 사용 권한을 다시 물었다. 그 줄을 지워서 고쳤다 — **다시 넣지 않는다.** `codesign -dv <Tide.app>`에서 `TeamIdentifier=WB5PG6BWM2`가 보이면 정상이다(`flags=0x2(adhoc)`가 보이면 회귀).
 
 ## 규칙
 
