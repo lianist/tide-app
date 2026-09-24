@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
 
 const String _dashboardUrl = 'https://dochi-six.vercel.app/dashboard';
+final Uri _dashboardUri = Uri.parse(_dashboardUrl);
 
 /// Full-window webview that hosts the dashboard (per the guideline doc,
 /// the dashboard *is* a web/webview page — there's no separate native UI
@@ -28,7 +32,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse(_dashboardUrl));
+      ..setNavigationDelegate(NavigationDelegate(onNavigationRequest: _handleNavigation))
+      ..loadRequest(_dashboardUri);
+  }
+
+  /// Google (and any other off-dochi-domain sign-in) refuses to run inside
+  /// an embedded webview — it detects the WebView user agent and blocks the
+  /// flow. Anything leaving dochi's own host opens in the system browser
+  /// instead; same-host navigation (the dashboard itself, email/password
+  /// login) stays in the webview.
+  FutureOr<NavigationDecision> _handleNavigation(NavigationRequest request) {
+    final uri = Uri.tryParse(request.url);
+    if (uri != null && uri.host != _dashboardUri.host) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+      return NavigationDecision.prevent;
+    }
+    return NavigationDecision.navigate;
   }
 
   @override

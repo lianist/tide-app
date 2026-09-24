@@ -23,3 +23,10 @@
 - 타임존 버그를 고쳤다 — `DateTime.now().timeZoneName`(`"KST"`)을 그대로 보내서 서버가 매번 `400 VALIDATION_FAILED`를 냈다. `/etc/localtime` 심볼릭 링크에서 IANA 이름(`Asia/Seoul`)을 읽도록 바꿨다(`StorageService.localIanaTimeZone`).
 - 로그인 화면을 Tide 디자인 시스템에 맞춰 다시 그렸다 — Mist 배경, 그림자 없는 흰 카드, 인디고 버튼, 실제 워드마크 SVG(`tide-kit-v3.0/assets/brand/`에서 복사). 커스텀 폰트(Pretendard·Wanted Sans)는 `tide-kit-v3.0/flutter/`가 이 체크아웃에 없어 아직 시스템 폰트로 대체돼 있다.
 - 대시보드 화면의 (dev용) 로그아웃 버튼을 없앴다. 지금은 웹뷰 안 dochi 자체 로그아웃(웹 세션만 지운다)이 유일한 경로다 — 앱 자체 세션까지 지우는 로그아웃이 필요해지면 별도로 만들어야 한다.
+
+## 2026-09-24 — 백그라운드 상주, OS 알림, 웹뷰 Google 로그인
+
+- **대시보드 웹뷰의 Google 로그인이 시스템 브라우저에서 열리게 했다** — Google이 임베디드 웹뷰 안의 로그인 시도를 그대로 막기 때문이다. `dochi-six.vercel.app`을 벗어나는 모든 내비게이션을 `NavigationDelegate`로 가로채 `url_launcher`로 외부 브라우저에 넘긴다(같은 호스트 안 이동은 웹뷰에 그대로 둔다). 단, 그렇게 완료한 로그인 세션 쿠키는 시스템 브라우저 쪽에 남지 웹뷰로 넘어오지 않는다 — 웹뷰 자체는 여전히 로그아웃 상태로 남는 별개 문제이고, 아직 손대지 않았다.
+- **창을 닫아도, `⌘Q`로 꺼도 앱이 종료되지 않는다** — 전역 캡처 단축키가 창이 아니라 프로세스에 등록돼 있어서, 종료되면 단축키도 함께 죽는다(사용자 결정, 2026-09-24: 일반적인 Mac 앱 관례와 다르게 `⌘Q`도 의도적으로 종료하지 않는다). `AppDelegate.applicationShouldTerminateAfterLastWindowClosed`가 `false`를 돌려주고 `MainFlutterWindow.isReleasedWhenClosed = false`로 창 객체를 살려 두며, `applicationShouldTerminate`를 오버라이드해 `⌘Q`·Dock의 "Quit"까지 가로채 창만 숨긴다. Dock 아이콘을 다시 누르면 `applicationShouldHandleReopen`이 숨겨 둔 창을 되살린다.
+  - 이제 앱을 실제로 끌 방법이 없어지므로, 앱 메뉴에 **"Quit Tide Completely"(⌘⌥Q)**를 코드로 추가했다 — 이것만 진짜 종료로 이어진다. 표준 "Quit Tide"(⌘Q) 항목의 문구는 그대로 두었다(더 이상 실제로 종료하지 않지만, XIB를 손대지 않고는 라벨을 못 바꾼다).
+- **캡처 결과를 macOS 알림(Notification Center)으로 띄운다** — 창이 닫혀 있으면 인앱 스낵바는 아무도 못 본다. `flutter_local_notifications`로 교체했고(`NotificationService`), 첫 실행에 알림 권한을 요청한다. 여러 건이 생성되면 그만큼 알림도 여러 개 뜬다(`api.md`의 "건마다 알림" 그대로).

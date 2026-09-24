@@ -8,12 +8,14 @@ import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'services/capture_api_service.dart';
 import 'services/hotkey_service.dart';
+import 'services/notification_service.dart';
 import 'services/screenshot_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await hotKeyManager.unregisterAll();
+  await NotificationService.initialize();
 
   final isLoggedIn = await AuthService().hasSession();
 
@@ -81,8 +83,6 @@ class _AppRootState extends State<AppRoot> {
   }
 
   void _showCaptureFeedback(CaptureResult result) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
     final messages = switch (result.upload.status) {
       // Server-provided text — one per created task, or the single
       // completed/no-task-found message (`CaptureApiService._notificationsFor`).
@@ -92,16 +92,16 @@ class _AppRootState extends State<AppRoot> {
       CaptureUploadStatus.failed =>
         ['${result.mode.displayName} capture failed to send.'],
     };
-    // `showSnackBar` queues automatically, so this naturally satisfies
-    // api.md's "건마다 알림을 띄운다" for multiple created tasks.
+    // OS notifications, not an in-window SnackBar — the window may be closed
+    // (the app keeps running for the global shortcuts). One push per message
+    // naturally satisfies api.md's "건마다 알림을 띄운다" for multiple created tasks.
     for (final message in messages) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-      );
+      NotificationService.show(message);
     }
     // §인증: a refresh that fails mid-capture means the session is gone —
-    // fall back to the login screen (a no-op if it was already showing).
-    if (result.upload.status == CaptureUploadStatus.notSignedIn) {
+    // fall back to the login screen next time the window is shown (a no-op
+    // if it was already showing).
+    if (result.upload.status == CaptureUploadStatus.notSignedIn && mounted) {
       setState(() => _isLoggedIn = false);
     }
   }
