@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Ttabong',
+                      'Tide',
                       style: TextStyle(
                         fontSize: 24,
                         height: 32 / 24,

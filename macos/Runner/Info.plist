@@ -29,7 +29,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Ttabong needs screen capture access to take screenshots via global shortcuts.</string>
+	<string>Tide needs screen capture access to take screenshots via global shortcuts.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
