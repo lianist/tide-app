@@ -19,6 +19,16 @@ void main() async {
   await hotKeyManager.unregisterAll();
   await NotificationService.initialize();
   await windowManager.ensureInitialized();
+  // Required on Windows — the native window stays hidden until window_manager
+  // is explicitly told to show it (windows/runner/flutter_window.cpp no
+  // longer auto-shows on first frame, to avoid racing window_manager's own
+  // visibility state). Harmless on macOS, where the window shows regardless
+  // via the native AppDelegate/MainFlutterWindow path.
+  const windowOptions = WindowOptions(size: Size(1280, 720), center: true, title: 'Tide');
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   final isLoggedIn = await AuthService().hasSession();
 
