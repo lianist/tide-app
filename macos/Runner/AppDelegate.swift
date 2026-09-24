@@ -34,7 +34,10 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   // The standard "Quit Tide" (⌘Q) item no longer really quits, so there
-  // needs to be *some* way to. No tray icon exists yet to hold a proper one.
+  // needs to be *some* way to. The tray icon's "Quit Tide Completely" item
+  // (Dart side, via the method channel in `MainFlutterWindow`) is the main
+  // path now that there's no Dock icon (`LSUIElement`); this app-menu item
+  // is a backup for whenever the window happens to be focused.
   private func addQuitCompletelyMenuItem() {
     guard let appMenu = NSApp.mainMenu?.items.first?.submenu else { return }
     let item = NSMenuItem(
@@ -47,7 +50,9 @@ class AppDelegate: FlutterAppDelegate {
     appMenu.addItem(item)
   }
 
-  @objc private func quitCompletely() {
+  // Not `private` — `MainFlutterWindow`'s method channel handler calls this
+  // for the tray icon's "Quit Tide Completely" item.
+  @objc func quitCompletely() {
     allowRealTermination = true
     NSApp.terminate(nil)
   }

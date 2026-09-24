@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:window_manager/window_manager.dart';
 import 'models/capture_mode.dart';
 import 'models/hotkey_config.dart';
 import 'screens/dashboard_screen.dart';
@@ -10,12 +11,14 @@ import 'services/capture_api_service.dart';
 import 'services/hotkey_service.dart';
 import 'services/notification_service.dart';
 import 'services/screenshot_service.dart';
+import 'services/tray_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await hotKeyManager.unregisterAll();
   await NotificationService.initialize();
+  await windowManager.ensureInitialized();
 
   final isLoggedIn = await AuthService().hasSession();
 
@@ -53,6 +56,7 @@ class _AppRootState extends State<AppRoot> {
   final _hotkeys = HotkeyConfig.defaultConfigs();
   late final ScreenshotService _screenshotService;
   late final HotkeyService _hotkeyService;
+  final _trayService = TrayService();
   StreamSubscription<CaptureResult>? _captureSubscription;
 
   @override
@@ -60,6 +64,7 @@ class _AppRootState extends State<AppRoot> {
     super.initState();
     _isLoggedIn = widget.initialIsLoggedIn;
     _screenshotService = ScreenshotService();
+    _trayService.initialize();
 
     // Global hotkeys stay registered regardless of which screen is showing.
     _hotkeyService = HotkeyService(
@@ -79,6 +84,7 @@ class _AppRootState extends State<AppRoot> {
     _captureSubscription?.cancel();
     _hotkeyService.unregisterAll();
     _screenshotService.dispose();
+    _trayService.dispose();
     super.dispose();
   }
 

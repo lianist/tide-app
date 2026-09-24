@@ -28,6 +28,8 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>LSUIElement</key>
+	<true/>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Tide needs screen capture access to take screenshots via global shortcuts.</string>
 	<key>CFBundleURLTypes</key>

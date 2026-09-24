@@ -15,6 +15,23 @@ class MainFlutterWindow: NSWindow {
     // left to bring back on Dock-icon reopen.
     self.isReleasedWhenClosed = false
 
+    // The tray icon's "Quit Tide Completely" item (Dart, `TrayService`) is
+    // the only thing allowed to actually terminate the process now that
+    // `applicationShouldTerminate` intercepts everything else — that logic
+    // lives in the app delegate, so this just forwards to it.
+    let quitChannel = FlutterMethodChannel(
+      name: "com.dochi.tide/app",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    quitChannel.setMethodCallHandler { call, result in
+      if call.method == "quitCompletely" {
+        (NSApp.delegate as? AppDelegate)?.quitCompletely()
+        result(nil)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     super.awakeFromNib()
   }
 }

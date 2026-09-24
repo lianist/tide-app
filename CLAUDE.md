@@ -14,8 +14,8 @@ Claude Code가 이 저장소에서 작업할 때 참고하는 가이드다.
 
 ## 현재 단계
 
-**2단계 코어 연동 진행 중** (2026-09-24) — 대시보드 웹뷰가 실제 dochi 배포 주소를 가리키고, 캡처 API가 api.md 계약대로 붙었고(엔드포인트·mode·Content-Type·타임존), 앱 로그인(시스템 브라우저 → 딥링크 → 코드 교환, 토큰 자동 갱신)이 실제로 동작한다.
-남은 것: 트레이 상주·플러그인 호스트(3단계) 등 `tide-kit-v3.0/flutter-porting-guide.md`가 그리는 나머지 화면. 경위는 `docs/10-Change-History.md`.
+**2단계 코어 연동 진행 중** (2026-09-24) — 대시보드 웹뷰가 실제 dochi 배포 주소를 가리키고, 캡처 API가 api.md 계약대로 붙었고(엔드포인트·mode·Content-Type·타임존), 앱 로그인(시스템 브라우저 → 딥링크 → 코드 교환, 토큰 자동 갱신)이 실제로 동작한다. Dock 아이콘 대신 메뉴바 트레이 아이콘(`LSUIElement`)으로 상주한다.
+남은 것: 로그인 시 자동 실행, 플러그인 호스트(3단계) 등 `tide-kit-v3.0/flutter-porting-guide.md`가 그리는 나머지 화면. 경위는 `docs/10-Change-History.md`.
 단계를 건너뛰거나 다음 단계 작업을 미리 하지 않는다. 로드맵 SSOT는 `docs/00-Overview.md`.
 
 ## Tech Stack
