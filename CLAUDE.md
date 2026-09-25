@@ -67,6 +67,7 @@ flutter test
 - 🔑 **앱 신원은 전부 `Tide`다** — 실행 파일 `tide.exe`, Dart 패키지 `tide`, 번들 ID `com.tide.app`, MSIX `Tide.TideDesktop`. 단 **`dochi://` 스킴과 `dochi-six.vercel.app`은 바꾸지 않는다** — 상대 제품(코어)의 계약이고, api.md가 redirect_uri를 "글자까지 정확히" 요구한다.
 - 🔑 **WebView2 프로필은 `AppPaths.webViewDataFolder`(LOCALAPPDATA)에 둔다.** 기본값은 실행 파일 *옆*이라 읽기 전용 설치 위치(Program Files·MSIX)에서 쓰기가 실패하고, 증상은 대시보드가 **빈 흰 화면**으로 나온다.
 - 🔑 **빌드 폴더에 아무것도 두지 않는다.** 설치 스크립트가 `Release\*`를 통째로 담아서, 거기 떨어진 것은 전부 배포본에 실린다(웹뷰 프로필 한 번, `tide.msix` 한 번 — 둘 다 크기가 두 배로 튀어서 잡았다). **깨끗한 설치 프로그램은 10MB대다.**
+- 🔑 **웹뷰 주입은 임시 다리다.** 대시보드는 dochi의 웹페이지라 소스를 못 고쳐서 로드 후 JS로 DOM을 손본다. 새 주입을 더하기 전에 **`docs/20-Core-Requests.md`에 적어 dochi로 넘길 수 있는지 먼저 본다.** 선택자가 구체적일수록 빨리 깨지고(글자 그대로 찾는 치환이 최악 — 실제로 한 번 깨졌다), 깨져도 조용하다. 그래서 주입 결과를 숫자로 로그에 남긴다 — `page polish: reveals=N …`이 **0이 되면 저쪽 페이지가 바뀐 것이다.** 레이아웃(CSS)까지 덮어쓰지 않는다.
 - 🔑 **GUI 빌드에는 콘솔이 없다 — `debugPrint`는 어디에도 남지 않는다.** 실행 중 동작을 남기려면 `AppLog.write`를 쓴다(`%APPDATA%\Tide\Tide\tide.log` — 첫 줄이 실행 중인 버전을 말한다).
 - `pubspec.lock`은 앱이지만 현재 gitignore에 있다. 배포를 시작할 때 커밋 대상으로 전환할지 결정한다.
 - 커밋 메시지는 한국어, Conventional Commits 접두사(`feat:`, `fix:`, `chore:`, `docs:`).
