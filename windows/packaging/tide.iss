@@ -17,7 +17,7 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 #define AppPublisher "Dochi"
 #define AppExe "ttabong.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
@@ -68,10 +68,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; own), and a hand-kept list would ship a build that is quietly missing one.
 ; This way `flutter build` + recompile is the whole release procedure.
 ;
-; The exclusion is WebView2's browser profile, which only exists if the app
-; was *run* from the build folder — the developer's cookies and cache, never
-; something to ship.
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 🔴 The exclusions are WebView2 browser profiles, which appear in the build
+; folder as soon as the app is *run* from it — the developer's own cookies and
+; session, never something to ship. This has already nearly happened once: a
+; profile copied aside under another name got picked up and doubled the
+; installer to 20MB. The size is the tell — a clean package is ~10MB, so check
+; it after building. Anything else parked in the build folder ships too.
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2,EBWebView,*_wv_*,*profile*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"

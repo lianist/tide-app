@@ -88,9 +88,15 @@ class _DashboardViewState extends State<DashboardView> {
     AppLog.write(_tag, 'loaded ${uri.host}${uri.path}');
     // Only dochi's own pages — never Google's sign-in, never anywhere else
     // the webview travels.
-    if (uri.host == dashboardUri.host) {
-      _controller.runJavaScript(_authPagePolishScript);
-    }
+    if (uri.host != dashboardUri.host) return;
+    // The result is logged rather than dropped: "is the build I am running
+    // actually the one with the login-screen fixes in it?" is otherwise only
+    // answerable by squinting at the page, and that question has already
+    // cost one release's worth of confusion.
+    _controller.runJavaScriptReturningResult(_authPagePolishScript).then(
+      (result) => AppLog.write(_tag, 'page polish: $result'),
+      onError: (Object e) => AppLog.write(_tag, 'page polish failed: $e'),
+    );
   }
 
   /// Always a fresh `loadRequest`, never `reload()`: the caller is telling us
@@ -128,7 +134,7 @@ class _DashboardViewState extends State<DashboardView> {
   /// tracking makes it throw and blank the whole page.
   static const String _authPagePolishScript = r'''
 (() => {
-  if (window.__tidePolish) return;
+  if (window.__tidePolish) return 'already applied';
   window.__tidePolish = true;
 
   var BRAND = '#444892';
@@ -196,18 +202,24 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   function apply() {
+    var reveals = 0, hidden = 0;
     var inputs = document.querySelectorAll('input[type=password]');
-    for (var i = 0; i < inputs.length; i++) decorate(inputs[i]);
+    for (var i = 0; i < inputs.length; i++) { decorate(inputs[i]); reveals++; }
 
     if (/^\/(login|signup|reset-password)/.test(location.pathname)) {
       var links = document.querySelectorAll('a[href^="/dashboard"]');
-      for (var j = 0; j < links.length; j++) links[j].style.display = 'none';
+      for (var j = 0; j < links.length; j++) {
+        links[j].style.display = 'none';
+        hidden++;
+      }
     }
+    return 'reveals=' + reveals + ' hidden-links=' + hidden;
   }
 
-  apply();
+  var first = apply();
   new MutationObserver(apply)
     .observe(document.body, {childList: true, subtree: true});
+  return first;
 })();
 ''';
 

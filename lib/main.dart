@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'models/capture_mode.dart';
 import 'models/hotkey_config.dart';
@@ -31,8 +32,15 @@ void main() async {
   final isLoggedIn = await AuthService().hasSession();
   // First line of every run, so the log says which launch a later entry
   // belongs to — and says the log is working at all.
-  AppLog.write('App', 'started on ${Platform.operatingSystem}, '
-      'signed in = $isLoggedIn');
+  //
+  // 🔑 The version is in it because "the release doesn't have the fix" and
+  // "you are running last week's build" look identical from the outside, and
+  // telling them apart by hand cost a whole round trip once already. It comes
+  // from the executable's own version resource, which Flutter fills in from
+  // pubspec, so it cannot drift from what was actually built.
+  final package = await PackageInfo.fromPlatform();
+  AppLog.write('App', 'Tide ${package.version}+${package.buildNumber} '
+      'started on ${Platform.operatingSystem}, signed in = $isLoggedIn');
 
   runApp(TtabongApp(initialIsLoggedIn: isLoggedIn));
 }
