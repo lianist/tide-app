@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -6,12 +8,15 @@ import 'models/capture_mode.dart';
 import 'models/hotkey_config.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
+import 'services/app_log.dart';
 import 'services/auth_service.dart';
 import 'services/capture_api_service.dart';
+import 'services/dashboard_refresh.dart';
 import 'services/hotkey_service.dart';
 import 'services/notification_service.dart';
 import 'services/screenshot_service.dart';
 import 'services/tray_service.dart';
+import 'services/url_scheme_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -19,10 +24,35 @@ void main() async {
   await hotKeyManager.unregisterAll();
   await NotificationService.initialize();
   await windowManager.ensureInitialized();
+  await _configureWindow();
+  UrlSchemeService.register();
 
   final isLoggedIn = await AuthService().hasSession();
+  // First line of every run, so the log says which launch a later entry
+  // belongs to — and says the log is working at all.
+  AppLog.write('App', 'started on ${Platform.operatingSystem}, '
+      'signed in = $isLoggedIn');
 
   runApp(TtabongApp(initialIsLoggedIn: isLoggedIn));
+}
+
+/// The Windows half of what `LSUIElement` + `AppDelegate` do on macOS: keep
+/// the app out of the taskbar and Alt+Tab, and make the close button hide the
+/// window rather than end the process, because the global capture shortcuts
+/// are registered on the process and die with it.
+Future<void> _configureWindow() async {
+  if (!Platform.isWindows) return;
+  // Everything must go through waitUntilReadyToShow, which is not merely a
+  // timing helper here: it is the only place window_manager's Windows plugin
+  // creates the ITaskbarList3 instance that setSkipTaskbar then dereferences.
+  // Calling setSkipTaskbar without it crashes the process outright
+  // (0xC0000005) rather than failing gracefully.
+  await windowManager.waitUntilReadyToShow(
+    const WindowOptions(title: 'Tide', skipTaskbar: true),
+    () async {
+      await windowManager.setPreventClose(true);
+    },
+  );
 }
 
 class TtabongApp extends StatelessWidget {
@@ -50,7 +80,7 @@ class AppRoot extends StatefulWidget {
   State<AppRoot> createState() => _AppRootState();
 }
 
-class _AppRootState extends State<AppRoot> {
+class _AppRootState extends State<AppRoot> with WindowListener {
   late bool _isLoggedIn;
   bool _isHotkeyActive = false;
   final _hotkeys = HotkeyConfig.defaultConfigs();
@@ -65,6 +95,7 @@ class _AppRootState extends State<AppRoot> {
     _isLoggedIn = widget.initialIsLoggedIn;
     _screenshotService = ScreenshotService();
     _trayService.initialize();
+    windowManager.addListener(this);
 
     // Global hotkeys stay registered regardless of which screen is showing.
     _hotkeyService = HotkeyService(
@@ -79,8 +110,16 @@ class _AppRootState extends State<AppRoot> {
         _screenshotService.onCaptureProcessed.listen(_showCaptureFeedback);
   }
 
+  /// Only fires on Windows, where `_configureWindow` set `preventClose`. The
+  /// tray's "Quit Tide Completely" bypasses this via `windowManager.destroy()`.
+  @override
+  void onWindowClose() {
+    windowManager.hide();
+  }
+
   @override
   void dispose() {
+    windowManager.removeListener(this);
     _captureSubscription?.cancel();
     _hotkeyService.unregisterAll();
     _screenshotService.dispose();
@@ -103,6 +142,11 @@ class _AppRootState extends State<AppRoot> {
     // naturally satisfies api.md's "건마다 알림을 띄운다" for multiple created tasks.
     for (final message in messages) {
       NotificationService.show(message);
+    }
+    // The task list the dashboard is showing was rendered before this
+    // capture existed, and nothing in the webview knows that changed.
+    if (result.upload.status == CaptureUploadStatus.success) {
+      DashboardRefresh.request();
     }
     // §인증: a refresh that fails mid-capture means the session is gone —
     // fall back to the login screen next time the window is shown (a no-op

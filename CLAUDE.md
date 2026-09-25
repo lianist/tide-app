@@ -22,7 +22,7 @@ Claude Code가 이 저장소에서 작업할 때 참고하는 가이드다.
 
 | 영역 | 기술 |
 |---|---|
-| App | Flutter **3.47.5** (stable) · Dart 3.13.4 · macOS 데스크톱 우선 |
+| App | Flutter **3.47.5** (stable) · Dart 3.13.4 · macOS + Windows 데스크톱 |
 | Backend | 없음 — Dochi API만 호출 |
 
 상태 관리·라우팅·HTTP 클라이언트 선택은 스캐폴딩 시점에 정하고 `docs/02-Architecture.md`에 근거와 함께 고정한다.
@@ -43,7 +43,7 @@ Ttabong (Flutter)
 
 ```bash
 flutter doctor -v
-flutter run -d macos
+flutter run -d macos     # Windows는 -d windows
 flutter analyze
 flutter test
 ```
@@ -53,10 +53,17 @@ flutter test
 - Flutter SDK는 Homebrew cask로 설치돼 있다 (`/opt/homebrew/share/flutter`, `flutter`·`dart`는 `/opt/homebrew/bin`). `macos-desktop`은 활성화 완료.
 - **macOS 빌드에는 Xcode가 필요하다.** CLT만으로는 안 된다. 설치 절차는 `README.md` 참고.
 - Xcode가 없어도 `flutter create` · `analyze` · `test`는 동작한다. 빌드가 막혀도 코드 작업은 진행할 수 있다.
+- 🔑 **Windows는 개발자 모드가 켜져 있어야 아무것도 안 막힌다.** 플러그인을 심볼릭 링크로 엮기 때문에, 꺼져 있으면 빌드는 물론 `pub get` · `analyze` · `test`까지 `Building with plugins requires symlink support`로 멈춘다(`start ms-settings:developers`). Windows 빌드에는 Visual Studio 2022의 C++ 데스크톱 워크로드 + ATL(`screen_capturer`가 요구)이 필요하다.
 - 🔑 **`Runner` 타겟은 실제 Apple Developer 팀(`WB5PG6BWM2`)의 Automatic Signing으로 서명된다** (2026-09-24). 프로젝트 레벨 빌드 설정에 남아 있던 `CODE_SIGN_IDENTITY = "-"`(ad-hoc, Flutter 기본값)가 타겟의 `CODE_SIGN_STYLE = Automatic`을 덮어써서 매번 다른 정체성으로 서명되는 바람에, 빌드할 때마다 macOS가 화면 기록·손쉬운 사용 권한을 다시 물었다. 그 줄을 지워서 고쳤다 — **다시 넣지 않는다.** `codesign -dv <Tide.app>`에서 `TeamIdentifier=WB5PG6BWM2`가 보이면 정상이다(`flags=0x2(adhoc)`가 보이면 회귀).
 
 ## 규칙
 
 - 🔴 API 키·비밀을 앱 코드나 에셋에 넣지 않는다.
+- 🔑 **Windows 창 설정은 반드시 `windowManager.waitUntilReadyToShow`를 통한다.** `window_manager`가 `ITaskbarList3`를 만드는 곳이 그 네이티브 호출뿐이라, 건너뛰고 `setSkipTaskbar`를 부르면 널 역참조로 프로세스가 즉사한다(`0xC0000005`).
+- 🔑 **플랫폼 분기는 조건부 import로 못 한다.** macOS와 Windows 둘 다 `dart:io`라 `dart.library.*`로는 구분이 안 된다 — `Platform.isWindows` 런타임 분기를 쓴다(`DashboardView` 참고).
+- 🔑 **Windows 웹뷰는 `webview_win_floating`이다**(`webview_flutter`의 Windows 구현으로 등록되므로 양 플랫폼이 같은 `WebViewController`를 쓴다). **`webview_windows`로 돌아가지 않는다** — 그 텍스처 방식은 Windows 11 + 현행 WebView2에서 빈 흰 화면만 나온다. 대신 Windows에선 웹뷰 위에 Flutter 위젯을 그릴 수 없다(네이티브 자식 창).
+- 🔑 **웹뷰 안 내비게이션을 Windows에서 가로막지 않는다.** Google 로그인은 그때그때 다른 호스트를 거쳐서, 호스트 허용 목록은 반드시 로그인을 깨뜨린다. macOS만 off-host를 외부 브라우저로 넘긴다(WKWebView는 Google이 거부한다).
+- 🔑 **Windows 캡처는 `screen_capturer.capture()`를 쓰지 않는다.** 그쪽은 캡처 도구가 떴는지를 포그라운드 프로세스 이름으로 1초 뒤부터 판정해서, 사용자가 드래그하기도 전에 빈 클립보드를 읽고 끝난다. `ScreenshotService`가 직접 `ms-screenclip://`을 띄우고 클립보드를 폴링한다.
+- 🔑 **GUI 빌드에는 콘솔이 없다 — `debugPrint`는 어디에도 남지 않는다.** 실행 중 동작을 남기려면 `AppLog.write`를 쓴다(`%APPDATA%\com.example\ttabong\tide.log`).
 - `pubspec.lock`은 앱이지만 현재 gitignore에 있다. 배포를 시작할 때 커밋 대상으로 전환할지 결정한다.
 - 커밋 메시지는 한국어, Conventional Commits 접두사(`feat:`, `fix:`, `chore:`, `docs:`).

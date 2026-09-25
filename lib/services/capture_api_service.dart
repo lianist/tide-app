@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/capture_mode.dart';
+import 'app_log.dart';
 import 'auth_service.dart';
 import 'dochi_config.dart';
 
@@ -36,6 +36,8 @@ class CaptureUploadResult {
 ///
 /// See `public/api.md` in the dochi repo for the contract this follows.
 class CaptureApiService {
+  static const _tag = 'CaptureApi';
+
   final AuthService _authService = AuthService();
 
   Future<CaptureUploadResult> uploadCapture({
@@ -45,14 +47,14 @@ class CaptureApiService {
     required String timezone,
   }) async {
     var token = await _authService.validAccessToken();
-    debugPrint('CaptureApiService: token present = ${token != null}');
+    AppLog.write(_tag, 'token present = ${token != null}');
     if (token == null) {
       return CaptureUploadResult.notSignedIn();
     }
 
     try {
       var response = await _send(token: token, image: image, mode: mode, capturedAt: capturedAt, timezone: timezone);
-      debugPrint('CaptureApiService: response ${response.statusCode}');
+      AppLog.write(_tag, 'response ${response.statusCode}');
 
       // §인증: 401을 받으면 갱신을 한 번 시도하고, 그것도 실패하면 로그인 화면을 띄운다.
       if (response.statusCode == 401) {
@@ -61,7 +63,7 @@ class CaptureApiService {
           return CaptureUploadResult.notSignedIn();
         }
         response = await _send(token: token, image: image, mode: mode, capturedAt: capturedAt, timezone: timezone);
-        debugPrint('CaptureApiService: retry response ${response.statusCode}');
+        AppLog.write(_tag, 'retry response ${response.statusCode}');
       }
 
       final body = jsonDecode(await response.stream.bytesToString()) as Map<String, dynamic>;
@@ -72,11 +74,11 @@ class CaptureApiService {
       if (response.statusCode == 401) {
         return CaptureUploadResult.notSignedIn();
       }
-      debugPrint('CaptureApiService: failed body: $body');
+      AppLog.write(_tag, 'failed body: $body');
       final message = (body['error'] as Map<String, dynamic>?)?['message'] as String?;
       return CaptureUploadResult.failed(message ?? 'Server returned ${response.statusCode}');
     } catch (e) {
-      debugPrint('CaptureApiService: upload failed: $e');
+      AppLog.write(_tag, 'upload failed: $e');
       return CaptureUploadResult.failed(e.toString());
     }
   }
@@ -118,7 +120,10 @@ class CaptureApiService {
     );
     request.headers['Authorization'] = 'Bearer $token';
     request.fields['mode'] = mode.apiValue;
-    request.fields['capturedAt'] = capturedAt.toIso8601String();
+    // 🔑 UTC, not the local `DateTime`: `toIso8601String()` writes no offset
+    // at all for a local time (`2026-09-25T18:00:00.000`), and api.md §시각
+    // only promises to accept an ISO string *with* one. UTC renders a `Z`.
+    request.fields['capturedAt'] = capturedAt.toUtc().toIso8601String();
     request.fields['timezone'] = timezone;
     request.files.add(await http.MultipartFile.fromPath(
       'image',

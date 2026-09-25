@@ -44,3 +44,22 @@ sudo gem install cocoapods
 ```
 
 Xcode 없이도 `flutter create`와 Dart 분석·테스트는 동작하므로, 코드 작업 자체는 먼저 시작할 수 있다.
+
+### Windows 빌드에는 Visual Studio와 개발자 모드가 필요하다
+
+**Visual Studio 2022**의 "C++를 사용한 데스크톱 개발" 워크로드를 설치한다(Build Tools만으로도 된다). `screen_capturer`가 **ATL**을 요구하므로 같이 체크한다.
+
+그리고 **개발자 모드를 켜야 한다** — 켜지 않으면 `flutter pub get`부터 `Building with plugins requires symlink support`로 멈춘다(플러그인을 심볼릭 링크로 엮기 때문이고, Windows는 심볼릭 링크 생성에 관리자 권한을 요구한다). `analyze`와 `test`도 같이 막히므로 코드 작업 전에 먼저 켜 둔다.
+
+```powershell
+start ms-settings:developers   # "개발자 모드" 켜기
+```
+
+대시보드 웹뷰는 **Edge WebView2 런타임**을 쓴다. Windows 11에는 기본 탑재돼 있어 보통 따로 설치할 필요가 없다.
+
+```powershell
+flutter build windows --release
+# build\windows\x64\runner\Release\ttabong.exe
+```
+
+산출물은 단일 실행 파일이 아니다 — `Release` 폴더 통째로 배포해야 한다(`flutter_windows.dll`·플러그인 DLL·`data\` 포함).

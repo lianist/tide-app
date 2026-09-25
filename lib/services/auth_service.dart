@@ -9,10 +9,13 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/auth_session.dart';
+import 'app_log.dart';
 import 'dochi_config.dart';
 
-/// Registered in `macos/Runner/Info.plist` and handed to `/auth/app/start` —
-/// must match byte-for-byte (`public/api.md` §앱 로그인 in the dochi repo).
+/// Handed to `/auth/app/start` and must match byte-for-byte (`public/api.md`
+/// §앱 로그인 in the dochi repo). The scheme is claimed per platform:
+/// `macos/Runner/Info.plist` declares it statically, while Windows writes it
+/// to the registry at runtime — see `UrlSchemeService`.
 const String _redirectUri = 'dochi://auth/callback';
 
 const String _sessionKey = 'dochi_session';
@@ -71,6 +74,7 @@ class AuthService {
       queryParameters: {'redirect_uri': _redirectUri, 'state': state},
     );
 
+    log('opening browser: $startUri');
     final opened = await launchUrl(startUri, mode: LaunchMode.externalApplication);
     if (!opened) {
       return '브라우저를 열지 못했습니다.';
@@ -80,7 +84,8 @@ class AuthService {
     try {
       callback = await AppLinks()
           .uriLinkStream
-          .firstWhere((uri) => uri.scheme == 'dochi' && uri.host == 'auth' && uri.path == '/callback')
+          .map(_logIncomingLink)
+          .firstWhere(_isAuthCallback)
           .timeout(const Duration(minutes: 5));
     } on TimeoutException {
       return '로그인이 시간 초과되었습니다. 다시 시도해 주세요.';
@@ -91,12 +96,38 @@ class AuthService {
       return '로그인 요청이 일치하지 않습니다. 다시 시도해 주세요.';
     }
 
+    log('callback matched, query=${callback.queryParameters}, fragment="${callback.fragment}"');
     final code = callback.queryParameters['code'];
     if (code == null) {
       return '로그인에 실패했습니다. 다시 시도해 주세요.';
     }
 
     return _exchangeToken({'grantType': 'code', 'code': code});
+  }
+
+  /// Deep links that arrive but don't match are the hard failure mode here:
+  /// `firstWhere` simply never completes, so sign-in hangs on the spinner for
+  /// the full five minutes with nothing shown. Logging every link makes that
+  /// case visible instead.
+  static Uri _logIncomingLink(Uri uri) {
+    log('deep link received: $uri (matches=${_isAuthCallback(uri)})');
+    return uri;
+  }
+
+  /// Sign-in leaves a trail in the shared log — the flow can't be reproduced
+  /// without a real browser, so what actually came back is all there is to
+  /// debug with. See [AppLog].
+  static void log(String message) => AppLog.write('Auth', message);
+
+  /// Matches the callback tolerantly. Browsers and OAuth providers normalise
+  /// `/callback` to `/callback/` freely, and an exact `==` comparison against
+  /// the path silently never matches when they do.
+  static bool _isAuthCallback(Uri uri) {
+    if (uri.scheme != 'dochi' || uri.host != 'auth') return false;
+    final path = uri.path.endsWith('/') && uri.path.length > 1
+        ? uri.path.substring(0, uri.path.length - 1)
+        : uri.path;
+    return path == '/callback';
   }
 
   /// Returns a usable access token, refreshing first if the stored one is

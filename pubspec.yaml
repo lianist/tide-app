@@ -39,10 +39,25 @@ dependencies:
   path_provider: ^2.1.6
   path: ^1.9.1
   intl: ^0.20.3
+  # Windows has no /etc/localtime to read an IANA zone name out of; this
+  # supplies one. See `StorageService.localIanaTimeZone`.
+  flutter_timezone: ^5.1.0
   webview_flutter: ^4.14.1
+  # The Windows implementation *of* webview_flutter (it registers itself as the
+  # platform there), so one `WebViewController` drives both desktops.
+  #
+  # 🔑 Not `webview_windows`, which draws WebView2 into a Flutter texture: on
+  # Windows 11 + a current WebView2 runtime that texture stays blank, so the
+  # dashboard was a white rectangle. This one parents a real WebView2 window
+  # over the Flutter window instead, which renders. The price is that Flutter
+  # widgets can't be drawn on top of it — see `DashboardView`.
+  webview_win_floating: ^3.0.3
   http: ^1.6.0
   http_parser: ^4.1.2
   app_links: ^7.2.1
+  # Windows registers custom URL schemes in the registry rather than in an
+  # app manifest. See `UrlSchemeService`.
+  win32_registry: ^2.1.0
   url_launcher: ^6.3.2
   flutter_secure_storage: ^10.3.4
   flutter_svg: ^2.3.0
@@ -73,10 +88,13 @@ flutter:
   uses-material-design: true
 
   # Tide wordmark, copied from `tide-kit-v3.0/assets/brand/` in the dochi
-  # repo — the same asset `TideLogo` renders on the web dashboard.
+  # repo ??the same asset `TideLogo` renders on the web dashboard.
   assets:
     - assets/brand/tide-wordmark.svg
     - assets/tray/tide-menubar-template.png
+    # Windows tray. The macOS template PNG above is monochrome and relies on
+    # macOS auto-inverting it; Windows does no such thing, so it needs its own.
+    - assets/tray/tide-tray.ico
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

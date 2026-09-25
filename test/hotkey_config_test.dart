@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
@@ -16,15 +18,26 @@ void main() {
       expect(modes, contains(AppCaptureMode.completeTask));
     });
 
-    test('Default shortcuts are ⇧⌘1 (create) and ⇧⌘2 (complete)', () {
+    test('Default shortcuts are ⇧⌘1/⇧⌘2, or Ctrl+⇧+1/2 on Windows', () {
       final defaults = HotkeyConfig.defaultConfigs();
       final createConfig =
           defaults.firstWhere((c) => c.action == AppCaptureMode.createTask);
       final completeConfig =
           defaults.firstWhere((c) => c.action == AppCaptureMode.completeTask);
 
-      expect(createConfig.shortcutDisplay, '⇧ ⌘ 1');
-      expect(completeConfig.shortcutDisplay, '⇧ ⌘ 2');
+      // Windows can't use ⌘: `meta` is the Windows key there and
+      // Win+Shift+<number> belongs to the shell, so Ctrl stands in.
+      if (Platform.isWindows) {
+        expect(createConfig.shortcutDisplay, 'Ctrl ⇧ 1');
+        expect(completeConfig.shortcutDisplay, 'Ctrl ⇧ 2');
+        expect(createConfig.modifiers, contains(HotKeyModifier.control));
+        expect(createConfig.modifiers, isNot(contains(HotKeyModifier.meta)));
+      } else {
+        expect(createConfig.shortcutDisplay, '⇧ ⌘ 1');
+        expect(completeConfig.shortcutDisplay, '⇧ ⌘ 2');
+        expect(createConfig.modifiers, contains(HotKeyModifier.meta));
+      }
+      expect(createConfig.modifiers, contains(HotKeyModifier.shift));
     });
 
     test('toHotKey converts accurately to hotkey_manager HotKey', () {
