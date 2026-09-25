@@ -121,3 +121,14 @@ dochi 쪽에서 넘어온 통지문 네 건을 훑고, 앱이 실제로 할 일�
   - 토글이 아니라 **누름 유지**다(`pointerdown` → 보임, `pointerup`/`pointerleave`/창 `blur` → 가림). 손을 떼면 반드시 가려지므로 "켜 둔 걸 잊고 자리를 뜨는" 경우가 없다. `pointerdown`에서 `preventDefault()`를 불러 입력칸의 커서 위치를 빼앗지 않는다.
   - 주입 범위를 Windows 한정에서 양 플랫폼으로 넓혔다. WKWebView에는 애초에 기본 보기 버튼이 없어서 macOS에도 없던 기능이고, `::-ms-reveal` CSS는 WebKit에서 그냥 무시된다.
 - ⚠️ **DOM을 옮기거나 지우지 않는다** — 버튼은 덧붙이고 링크는 `display:none`으로 감출 뿐이다. React가 추적 중인 노드를 재부모화하거나 삭제하면 예외가 나면서 페이지가 통째로 비어 버린다.
+
+## 2026-09-25 — Windows 작업 표시줄로 돌아오기
+
+창이 작업 표시줄에도 Alt+Tab에도 없어서, 다른 프로그램을 띄우면 Tide 창이 그 뒤로 사라지고 다시 찾아올 길이 없었다.
+
+- **`skipTaskbar`를 뺐다.** macOS의 `LSUIElement`(Dock 아이콘 제거)를 Windows에 그대로 옮긴 결정이었는데, 두 플랫폼에서 뜻이 다르다 — 트레이는 *닫아 둔* 앱을 찾는 곳이지 지금 보고 있는 창을 다시 불러오는 곳이 아니다. 트레이 아이콘은 그대로 둔다(창을 닫은 뒤 되살리는 유일한 경로다). macOS는 건드리지 않았다.
+  - 확인: 창 `exStyle`에 `WS_EX_TOOLWINDOW`가 없고 소유자 창이 없다 = Windows가 Alt+Tab 목록에 넣는 조건. 작업 표시줄 단추도 스크린샷으로 확인했다.
+- **작업 표시줄 아이콘을 앱 아이콘 SVG에서 다시 만들었다.** `assets/app-icon/tide-app-icon.svg` → `windows/runner/resources/app_icon.ico` (16·20·24·32·40·48·64·128·256).
+  - 🔑 **트레이 아이콘(`assets/tray/tide-tray.ico`)을 쓰면 안 된다** — 그쪽은 알림 영역이 요구하는 32px까지만 들고 있어서, 256px를 요구하는 작업 표시줄·Alt+Tab에서는 뭉개진다.
+  - 만드는 법은 `windows/packaging/make-app-icon.ps1`에 스크립트로 두었다. 리소스 컴파일러가 SVG를 못 읽어서 .ico는 체크인된 빌드 산출물이고, SVG가 바뀌면 그 스크립트를 다시 돌린다. 래스터라이저는 헤드리스 Edge를 쓴다 — Windows 개발 머신에 반드시 있는 유일한 SVG 렌더러라서다.
+  - 실행 파일 메타데이터의 `FileDescription`은 이미 `Tide`라 작업 표시줄 툴팁도 그대로 맞는다.

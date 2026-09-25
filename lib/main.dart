@@ -48,19 +48,27 @@ Future<void> _openCaptureInHistory(String jobLogId) async {
   await windowManager.focus();
 }
 
-/// The Windows half of what `LSUIElement` + `AppDelegate` do on macOS: keep
-/// the app out of the taskbar and Alt+Tab, and make the close button hide the
-/// window rather than end the process, because the global capture shortcuts
-/// are registered on the process and die with it.
+/// Makes the close button hide the window rather than end the process: the
+/// global capture shortcuts are registered on the process and die with it.
+/// This is the Windows half of what `AppDelegate` does on macOS.
+///
+/// 🔑 **The window deliberately keeps its taskbar button and its place in
+/// Alt+Tab** (2026-09-25). It used to be hidden from both — `skipTaskbar` —
+/// on the reasoning that the tray icon replaced them, the way `LSUIElement`
+/// removes the Dock icon on macOS. That reasoning doesn't survive contact
+/// with Windows: the tray is where you find an app that is *closed*, not one
+/// you are looking at, and a visible window that can't be switched back to
+/// is simply lost behind whatever the user opens next. The tray icon stays —
+/// it is still the only way back once the window is closed.
 Future<void> _configureWindow() async {
   if (!Platform.isWindows) return;
   // Everything must go through waitUntilReadyToShow, which is not merely a
   // timing helper here: it is the only place window_manager's Windows plugin
-  // creates the ITaskbarList3 instance that setSkipTaskbar then dereferences.
-  // Calling setSkipTaskbar without it crashes the process outright
+  // creates the ITaskbarList3 instance that the taskbar calls dereference.
+  // Reaching one of them without it crashes the process outright
   // (0xC0000005) rather than failing gracefully.
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(title: 'Tide', skipTaskbar: true),
+    const WindowOptions(title: 'Tide'),
     () async {
       await windowManager.setPreventClose(true);
     },

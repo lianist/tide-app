@@ -52,6 +52,13 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
+// The window icon, the taskbar button, Alt+Tab and the .exe itself all come
+// from here.
+//
+// Generated from assets/app-icon/tide-app-icon.svg by
+// windows/packaging/make-app-icon.ps1 — regenerate it there rather than
+// editing the .ico, and never point this at assets/tray/tide-tray.ico: that
+// one carries 16-32px only, and the taskbar and Alt+Tab ask for far more.
 IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
 
 

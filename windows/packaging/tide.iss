@@ -17,7 +17,7 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define AppPublisher "Dochi"
 #define AppExe "ttabong.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
