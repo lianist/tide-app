@@ -25,47 +25,36 @@ class HotkeyConfig {
     );
   }
 
-  /// Rendered one token per space — `HotkeyBadge` splits on whitespace to draw
-  /// a key cap per token.
+  /// What the badge shows. `HotkeyBadge` splits on whitespace and draws a key
+  /// cap per token, so the number of tokens decides the look.
   ///
-  /// Windows names the modifiers it has names for (`Ctrl`, `Alt`, `Win`) —
-  /// the ⌘/⌥/⌃ glyphs are a Mac convention and read as mojibake there.
+  /// 🔑 The two platforms want different things here:
+  ///   * **Windows spells the whole chord inside one cap** — `Ctrl+Shift+1`.
+  ///     It is how Windows itself writes shortcuts, and it survived two
+  ///     attempts at something shorter: `Ctrl ⇧ 1` (2026-09-25) and `Ctrl !`
+  ///     (the shifted face of the key). Both were more compact and both were
+  ///     harder to read at a glance, which is the only thing this line is for.
+  ///   * **macOS keeps a cap per glyph** — `⇧ ⌘ 1`. Mac shortcuts are written
+  ///     without separators, and the glyphs are wide enough to stand alone.
   ///
-  /// 🔑 Shift over a number is folded into the character that key actually
-  /// produces: **`Ctrl !`, not `Ctrl ⇧ 1`**. Two caps instead of three, and
-  /// it is what the user sees printed on the key they are being asked to
-  /// press. (US layout, which is what Korean keyboards use for the number
-  /// row; a layout where ⇧2 isn't `@` would need its own table.)
+  /// The registered combination is the same either way; only the label moves.
   String get shortcutDisplay {
-    final buffer = StringBuffer();
     final isWindows = Platform.isWindows;
+    final parts = <String>[];
     if (modifiers.contains(HotKeyModifier.control)) {
-      buffer.write(isWindows ? 'Ctrl ' : '⌃ ');
+      parts.add(isWindows ? 'Ctrl' : '⌃');
     }
     if (modifiers.contains(HotKeyModifier.alt)) {
-      buffer.write(isWindows ? 'Alt ' : '⌥ ');
+      parts.add(isWindows ? 'Alt' : '⌥');
     }
-    // On Windows the shifted face replaces both the ⇧ token and the digit.
-    final shiftedFace =
-        isWindows && modifiers.contains(HotKeyModifier.shift) ? _shiftedFace(key) : null;
-    if (modifiers.contains(HotKeyModifier.shift) && shiftedFace == null) {
-      buffer.write('⇧ ');
+    if (modifiers.contains(HotKeyModifier.shift)) {
+      parts.add(isWindows ? 'Shift' : '⇧');
     }
     if (modifiers.contains(HotKeyModifier.meta)) {
-      buffer.write(isWindows ? 'Win ' : '⌘ ');
+      parts.add(isWindows ? 'Win' : '⌘');
     }
-
-    buffer.write(shiftedFace ?? _formatKey(key));
-    return buffer.toString().trim();
-  }
-
-  /// What the key prints when Shift is held. Only the digits the app actually
-  /// binds are listed — there is no reason to carry a full layout table for
-  /// two shortcuts.
-  static String? _shiftedFace(PhysicalKeyboardKey key) {
-    if (key == PhysicalKeyboardKey.digit1) return '!';
-    if (key == PhysicalKeyboardKey.digit2) return '@';
-    return null;
+    parts.add(_formatKey(key));
+    return isWindows ? parts.join('+') : parts.join(' ');
   }
 
   static String _formatKey(PhysicalKeyboardKey key) {

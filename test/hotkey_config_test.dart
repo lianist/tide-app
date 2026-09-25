@@ -18,7 +18,7 @@ void main() {
       expect(modes, contains(AppCaptureMode.completeTask));
     });
 
-    test('Default shortcuts are ⇧⌘1/⇧⌘2, or Ctrl !/Ctrl @ on Windows', () {
+    test('Default shortcuts are ⇧⌘1/⇧⌘2, or Ctrl+Shift+1/2 on Windows', () {
       final defaults = HotkeyConfig.defaultConfigs();
       final createConfig =
           defaults.firstWhere((c) => c.action == AppCaptureMode.createTask);
@@ -28,9 +28,9 @@ void main() {
       // Windows can't use ⌘: `meta` is the Windows key there and
       // Win+Shift+<number> belongs to the shell, so Ctrl stands in.
       if (Platform.isWindows) {
-        // Shift over a number is shown as the character the key prints.
-        expect(createConfig.shortcutDisplay, 'Ctrl !');
-        expect(completeConfig.shortcutDisplay, 'Ctrl @');
+        // The whole chord in one cap — Windows writes shortcuts this way.
+        expect(createConfig.shortcutDisplay, 'Ctrl+Shift+1');
+        expect(completeConfig.shortcutDisplay, 'Ctrl+Shift+2');
         expect(createConfig.modifiers, contains(HotKeyModifier.control));
         expect(createConfig.modifiers, isNot(contains(HotKeyModifier.meta)));
       } else {
