@@ -28,16 +28,18 @@ class HotkeyConfig {
   /// What the badge shows. `HotkeyBadge` splits on whitespace and draws a key
   /// cap per token, so the number of tokens decides the look.
   ///
-  /// 🔑 The two platforms want different things here:
-  ///   * **Windows spells the whole chord inside one cap** — `Ctrl+Shift+1`.
-  ///     It is how Windows itself writes shortcuts, and it survived two
-  ///     attempts at something shorter: `Ctrl ⇧ 1` (2026-09-25) and `Ctrl !`
-  ///     (the shifted face of the key). Both were more compact and both were
-  ///     harder to read at a glance, which is the only thing this line is for.
-  ///   * **macOS keeps a cap per glyph** — `⇧ ⌘ 1`. Mac shortcuts are written
-  ///     without separators, and the glyphs are wide enough to stand alone.
+  /// 🔑 **One cap, one shape, both platforms** — `Ctrl+Shift+1` on Windows
+  /// and `Shift+⌘+1` on macOS. Each keeps the symbol its own users know
+  /// (`Ctrl` vs `⌘`), but the joining and the ordering match, so the two
+  /// builds don't read like two different products.
   ///
-  /// The registered combination is the same either way; only the label moves.
+  /// Windows survived two attempts at something shorter — `Ctrl ⇧ 1` and
+  /// `Ctrl !` (the shifted face of the key). Both were more compact and both
+  /// were harder to read at a glance, which is the only thing this line is
+  /// for.
+  ///
+  /// The registered combination never changed through any of it; only the
+  /// label moves.
   String get shortcutDisplay {
     final isWindows = Platform.isWindows;
     final parts = <String>[];
@@ -47,14 +49,17 @@ class HotkeyConfig {
     if (modifiers.contains(HotKeyModifier.alt)) {
       parts.add(isWindows ? 'Alt' : '⌥');
     }
+    // 🔑 Shift is spelled out on both platforms. `⇧` is the correct Mac
+    // glyph, but next to `⌘` it reads as decoration rather than a key name —
+    // `Shift+⌘+1` is what a person can repeat out loud.
     if (modifiers.contains(HotKeyModifier.shift)) {
-      parts.add(isWindows ? 'Shift' : '⇧');
+      parts.add('Shift');
     }
     if (modifiers.contains(HotKeyModifier.meta)) {
       parts.add(isWindows ? 'Win' : '⌘');
     }
     parts.add(_formatKey(key));
-    return isWindows ? parts.join('+') : parts.join(' ');
+    return parts.join('+');
   }
 
   static String _formatKey(PhysicalKeyboardKey key) {

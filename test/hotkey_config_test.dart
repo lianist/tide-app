@@ -34,8 +34,8 @@ void main() {
         expect(createConfig.modifiers, contains(HotKeyModifier.control));
         expect(createConfig.modifiers, isNot(contains(HotKeyModifier.meta)));
       } else {
-        expect(createConfig.shortcutDisplay, '⇧ ⌘ 1');
-        expect(completeConfig.shortcutDisplay, '⇧ ⌘ 2');
+        expect(createConfig.shortcutDisplay, 'Shift+⌘+1');
+        expect(completeConfig.shortcutDisplay, 'Shift+⌘+2');
         expect(createConfig.modifiers, contains(HotKeyModifier.meta));
       }
       expect(createConfig.modifiers, contains(HotKeyModifier.shift));

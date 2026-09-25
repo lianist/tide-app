@@ -117,19 +117,19 @@ class CaptureApiService {
     final messages = <String>[];
 
     for (final task in data['created'] as List<dynamic>? ?? const []) {
-      messages.add('"${(task as Map<String, dynamic>)['title']}" added');
+      messages.add('"${(task as Map<String, dynamic>)['title']}" 추가했어요.');
     }
 
     final completed = data['completed'] as Map<String, dynamic>?;
     if (completed != null) {
-      messages.add('Completed: "${completed['title']}"');
+      messages.add('"${completed['title']}" 완료했어요.');
     }
 
     // The all-duplicates case arrives here as an ordinary `failed` outcome,
     // so its own `message` (which already names the existing task) covers it.
     final failure = data['failure'] as Map<String, dynamic>?;
     if (failure != null) {
-      messages.add(failure['message'] as String? ?? 'No task found.');
+      messages.add(failure['message'] as String? ?? '처리할 태스크를 찾지 못했어요.');
     }
 
     // What's left is the *partial* case: some tasks were created and others
@@ -140,8 +140,8 @@ class CaptureApiService {
     if (duplicates.isNotEmpty && failure == null) {
       final first = (duplicates.first as Map<String, dynamic>)['title'];
       messages.add(duplicates.length == 1
-          ? '"$first" is already on your list'
-          : '"$first" and ${duplicates.length - 1} more are already on your list');
+          ? '"$first"은(는) 이미 있어요.'
+          : '"$first" 외 ${duplicates.length - 1}건은 이미 있어요.');
     }
 
     return messages;

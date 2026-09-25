@@ -6,8 +6,13 @@ import '../services/auth_service.dart';
 import '../theme/tide_colors.dart';
 import '../widgets/hotkey_badge.dart';
 
-/// Login screen. Sign-in is browser-based with a deep link back into the
-/// app (`AUTH-3` in the guideline doc) — see `AuthService.signIn()`.
+/// The app's own sign-in screen — shown whenever no session is stored, which
+/// in practice means a fresh install, an upgrade that moved the storage path,
+/// or a session the server rejected.
+///
+/// Sign-in is browser-based with a deep link back into the app (`AUTH-3` in
+/// the guideline doc) — see `AuthService.signIn()`. There is no password field
+/// here on purpose: the app never handles credentials.
 ///
 /// Styled to match dochi's own auth screens (`app/(auth)/layout.tsx`): Mist
 /// page background, a white bordered card with **no shadow** (Tide rule —
@@ -60,7 +65,13 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SvgPicture.asset('assets/brand/tide-wordmark.svg', height: 24),
+              // 🔑 The horizontal lockup already contains the word "Tide", so
+              // the card below deliberately has no title. A wordmark plus a
+              // "Tide" heading put the same word on screen twice.
+              SvgPicture.asset(
+                'assets/brand/tide-logo-horizontal.svg',
+                height: 28,
+              ),
               const SizedBox(height: 24),
               Container(
                 width: double.infinity,
@@ -74,22 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Tide',
+                      '로그인하면 캡처한 내용이\n대시보드에 쌓입니다.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 24,
-                        height: 32 / 24,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        height: 22 / 14,
                         color: TideColors.text,
-                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Sign in to sync captures with your dashboard.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, height: 20 / 13, color: TideColors.textSecondary),
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
                       height: 36,
@@ -113,9 +117,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: TideColors.onBrand,
                                 ),
                               )
-                            : const Text('Sign In'),
+                            : const Text('로그인'),
                       ),
                     ),
+                    if (!_isSigningIn) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        '브라우저가 열립니다. 로그인을 마치면\n앱으로 돌아옵니다.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 18 / 12,
+                          color: TideColors.textSecondary,
+                        ),
+                      ),
+                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -137,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Global shortcuts',
+                '전역 단축키',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,

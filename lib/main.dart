@@ -161,9 +161,9 @@ class _AppRootState extends State<AppRoot> with WindowListener {
       // completed/no-task-found message (`CaptureApiService._notificationsFor`).
       CaptureUploadStatus.success => result.upload.notifications,
       CaptureUploadStatus.notSignedIn =>
-        ['${result.mode.displayName} captured, but you need to sign in first.'],
+        ['${result.mode.displayName} 캡처를 했지만, 먼저 로그인해야 합니다.'],
       CaptureUploadStatus.failed =>
-        ['${result.mode.displayName} capture failed to send.'],
+        ['${result.mode.displayName} 캡처를 보내지 못했습니다.'],
     };
     // OS notifications, not an in-window SnackBar — the window may be closed
     // (the app keeps running for the global shortcuts). One push per message

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_win_floating/webview_plugin.dart';
 
+import '../models/capture_mode.dart';
+import '../models/hotkey_config.dart';
 import '../services/app_log.dart';
 import '../services/app_paths.dart';
 import '../services/dashboard_navigation.dart';
@@ -127,6 +130,39 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
+  /// 🔑 dochi's dashboard lists both platforms' shortcuts side by side, and
+  /// spells the Windows one `Ctrl+⇧1` while this app spells it
+  /// `Ctrl+Shift+1`. Same chord, two spellings, one window — so the Windows
+  /// column is rewritten to match the app.
+  ///
+  /// **Only the Windows spelling.** An earlier version of this replaced the
+  /// macOS glyphs (`⇧⌘1`) instead, from back when the dashboard printed one
+  /// shortcut and assumed a Mac. The page changed underneath it and the patch
+  /// started corrupting the *macOS* column — which is the standing warning
+  /// about editing someone else's page: keep the match as narrow as possible,
+  /// and make a miss a no-op rather than damage.
+  ///
+  /// Empty on macOS, where nothing needs saying.
+  ///
+  /// The real fix belongs in dochi — worth raising the next time we send
+  /// them anything.
+  static Map<String, String> get _shortcutHintFixes {
+    if (!Platform.isWindows) return const {};
+    final configs = HotkeyConfig.defaultConfigs();
+    String displayFor(AppCaptureMode action) =>
+        configs.firstWhere((config) => config.action == action).shortcutDisplay;
+    return {
+      'Ctrl+⇧1': displayFor(AppCaptureMode.createTask),
+      'Ctrl+⇧2': displayFor(AppCaptureMode.completeTask),
+    };
+  }
+
+  /// The injected script: the hint table, then the body verbatim. The body
+  /// stays a *raw* string — it contains a regex (`/^\/(login|…)/`) whose
+  /// backslash Dart would otherwise eat, silently changing what it matches.
+  static String get _authPagePolishScript =>
+      'window.TIDE_HINTS = ${jsonEncode(_shortcutHintFixes)};\n$_polishBody';
+
   /// Two fixes to dochi's own auth pages, applied in the app's webview only.
   ///
   /// Neither is a change to the website — this repo can't touch dochi's
@@ -145,10 +181,11 @@ class _DashboardViewState extends State<DashboardView> {
   /// moved or removed from the DOM — the button is appended and the link is
   /// merely hidden — because re-parenting or deleting a node React is still
   /// tracking makes it throw and blank the whole page.
-  static const String _authPagePolishScript = r'''
+  static const String _polishBody = r'''
 (() => {
   if (window.__tidePolish) return 'already applied';
   window.__tidePolish = true;
+
 
   var BRAND = '#444892';
   var MUTED = '#9ca3af';
@@ -214,6 +251,29 @@ class _DashboardViewState extends State<DashboardView> {
     if (window.ResizeObserver) new ResizeObserver(place).observe(input);
   }
 
+  // The hints live in ordinary text nodes, so they are found by walking text
+  // rather than by guessing at dochi's markup. Nodes are collected first and
+  // edited after: mutating during a TreeWalker walk skips siblings.
+  function fixHints() {
+    var keys = Object.keys(window.TIDE_HINTS || {});
+    if (!keys.length) return 0;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var hits = [], node;
+    while ((node = walker.nextNode())) {
+      for (var i = 0; i < keys.length; i++) {
+        if (node.nodeValue.indexOf(keys[i]) !== -1) { hits.push(node); break; }
+      }
+    }
+    for (var j = 0; j < hits.length; j++) {
+      var text = hits[j].nodeValue;
+      for (var k = 0; k < keys.length; k++) {
+        text = text.split(keys[k]).join(window.TIDE_HINTS[keys[k]]);
+      }
+      hits[j].nodeValue = text;
+    }
+    return hits.length;
+  }
+
   function apply() {
     var reveals = 0, hidden = 0;
     var inputs = document.querySelectorAll('input[type=password]');
@@ -226,7 +286,8 @@ class _DashboardViewState extends State<DashboardView> {
         hidden++;
       }
     }
-    return 'reveals=' + reveals + ' hidden-links=' + hidden;
+    return 'reveals=' + reveals + ' hidden-links=' + hidden +
+      ' shortcut-hints=' + fixHints();
   }
 
   var first = apply();

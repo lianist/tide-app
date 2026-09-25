@@ -22,7 +22,7 @@ void main() {
           'completed': null,
           'failure': null,
         }),
-        ['"제안서 초안 보내기" added', '"회의실 예약" added'],
+        ['"제안서 초안 보내기" 추가했어요.', '"회의실 예약" 추가했어요.'],
       );
     });
 
@@ -34,7 +34,7 @@ void main() {
           'completed': {'id': 'a', 'title': '보고서 제출하기'},
           'failure': null,
         }),
-        ['Completed: "보고서 제출하기"'],
+        ['"보고서 제출하기" 완료했어요.'],
       );
     });
 
@@ -95,8 +95,8 @@ void main() {
           'failure': null,
         }),
         [
-          '"회의실 예약" added',
-          '"보고서 제출하기" and 1 more are already on your list',
+          '"회의실 예약" 추가했어요.',
+          '"보고서 제출하기" 외 1건은 이미 있어요.',
         ],
       );
     });
@@ -112,7 +112,7 @@ void main() {
           'duplicates': [],
           'failure': null,
         }),
-        ['"회의실 예약" added'],
+        ['"회의실 예약" 추가했어요.'],
       );
     });
 
@@ -124,7 +124,7 @@ void main() {
             {'id': 'a', 'title': '회의실 예약'},
           ],
         }),
-        ['"회의실 예약" added'],
+        ['"회의실 예약" 추가했어요.'],
       );
     });
   });
