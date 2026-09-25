@@ -48,7 +48,7 @@ class ScreenshotService {
     final generation = ++_generation;
     final tempDir = await getTemporaryDirectory();
     final fileName =
-        'ttabong_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.png';
+        'tide_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.png';
     final targetPath = p.join(tempDir.path, fileName);
     AppLog.write(_tag, 'start mode=${mode.apiValue} path=$targetPath');
 

@@ -28,7 +28,7 @@ class UrlSchemeService {
       // An empty-named "URL Protocol" value is the flag that marks a key as a
       // protocol handler; its content is irrelevant, its presence is not.
       schemeKey.createValue(const RegistryValue.string('URL Protocol', ''));
-      schemeKey.createValue(const RegistryValue.string('', 'URL:Dochi Protocol'));
+      schemeKey.createValue(const RegistryValue.string('', 'URL:Tide Protocol'));
 
       commandKey = schemeKey.createKey('shell\\open\\command');
       commandKey.createValue(

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ttabong/services/capture_api_service.dart';
+import 'package:tide/services/capture_api_service.dart';
 
 /// Covers the shapes `POST /api/v1/captures` can answer with, including the
 /// ones announced in the 2026-09-25 app-department notice (`DUPLICATE_TASK`

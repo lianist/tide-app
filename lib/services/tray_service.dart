@@ -8,7 +8,7 @@ import 'package:window_manager/window_manager.dart';
 /// a Dock or taskbar entry, since the app hides itself from both. Its menu is
 /// the only way left to bring the window back or fully quit.
 class TrayService with TrayListener {
-  static const _appChannel = MethodChannel('com.dochi.tide/app');
+  static const _appChannel = MethodChannel('com.tide.app/app');
 
   /// macOS renders a *template* image — monochrome plus alpha, which the OS
   /// recolours for light/dark menu bars. Windows does no such recolouring and

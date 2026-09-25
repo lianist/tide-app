@@ -29,11 +29,13 @@ class HotkeyConfig {
   /// a key cap per token.
   ///
   /// Windows names the modifiers it has names for (`Ctrl`, `Alt`, `Win`) —
-  /// the ⌘/⌥/⌃ glyphs are a Mac convention and read as mojibake there. Shift
-  /// is the exception: ⇧ is how Windows itself draws it (the touch keyboard,
-  /// the Snipping Tool's shortcut hints), it's the one modifier glyph that
-  /// isn't Mac-specific, and it keeps the badge row from being three wide
-  /// word caps.
+  /// the ⌘/⌥/⌃ glyphs are a Mac convention and read as mojibake there.
+  ///
+  /// 🔑 Shift over a number is folded into the character that key actually
+  /// produces: **`Ctrl !`, not `Ctrl ⇧ 1`**. Two caps instead of three, and
+  /// it is what the user sees printed on the key they are being asked to
+  /// press. (US layout, which is what Korean keyboards use for the number
+  /// row; a layout where ⇧2 isn't `@` would need its own table.)
   String get shortcutDisplay {
     final buffer = StringBuffer();
     final isWindows = Platform.isWindows;
@@ -43,15 +45,27 @@ class HotkeyConfig {
     if (modifiers.contains(HotKeyModifier.alt)) {
       buffer.write(isWindows ? 'Alt ' : '⌥ ');
     }
-    if (modifiers.contains(HotKeyModifier.shift)) {
+    // On Windows the shifted face replaces both the ⇧ token and the digit.
+    final shiftedFace =
+        isWindows && modifiers.contains(HotKeyModifier.shift) ? _shiftedFace(key) : null;
+    if (modifiers.contains(HotKeyModifier.shift) && shiftedFace == null) {
       buffer.write('⇧ ');
     }
     if (modifiers.contains(HotKeyModifier.meta)) {
       buffer.write(isWindows ? 'Win ' : '⌘ ');
     }
 
-    buffer.write(_formatKey(key));
+    buffer.write(shiftedFace ?? _formatKey(key));
     return buffer.toString().trim();
+  }
+
+  /// What the key prints when Shift is held. Only the digits the app actually
+  /// binds are listed — there is no reason to carry a full layout table for
+  /// two shortcuts.
+  static String? _shiftedFace(PhysicalKeyboardKey key) {
+    if (key == PhysicalKeyboardKey.digit1) return '!';
+    if (key == PhysicalKeyboardKey.digit2) return '@';
+    return null;
   }
 
   static String _formatKey(PhysicalKeyboardKey key) {

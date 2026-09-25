@@ -17,8 +17,11 @@ class NotificationService {
 
   /// Identifies the app to the Windows Action Center. It must stay fixed:
   /// Windows keys a toast's history and the user's per-app notification
-  /// settings off this pair, so changing either orphans both.
-  static const _windowsAppUserModelId = 'com.dochi.tide';
+  /// settings off this pair, so changing either orphans both. (It was
+  /// `com.dochi.tide` until 1.4.0, when the app's own identity was settled on
+  /// Tide throughout — a rename worth doing exactly once, before anyone but
+  /// the author had the app installed.)
+  static const _windowsAppUserModelId = 'com.tide.app';
   static const _windowsGuid = 'd59d1867-05bb-4ee9-941d-d1736b1546aa';
 
   /// [onTap] is handed the payload of whichever notification was clicked —

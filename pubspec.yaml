@@ -1,5 +1,5 @@
-name: ttabong
-description: "A new Flutter project."
+name: tide
+description: "Tide — 화면을 캡처하면 에이전트가 할 일을 만들어 주는 데스크톱 앱."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.3.0+4
+version: 1.4.0+5
 
 environment:
   sdk: ^3.13.4
@@ -76,6 +76,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  msix: ^3.18.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -122,3 +123,33 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Microsoft Store 배포용 MSIX 패키징 (`dart run msix:create`).
+#
+# 🔑 MSIX 설치 폴더는 읽기 전용이다 — WebView2 프로필을 실행 파일 옆에 두면
+# 대시보드가 빈 화면이 된다. `AppPaths.webViewDataFolder`가 그것을
+# LOCALAPPDATA로 빼 두었으므로 여기서는 따로 할 일이 없다.
+#
+# 🔑 `protocol_activation`이 `dochi://` 딥링크 로그인을 살린다. 패키지 앱에서는
+# `UrlSchemeService`의 런타임 레지스트리 쓰기가 가상화돼 시스템에 등록되지
+# 않으므로, 매니페스트에 선언하는 이 줄이 유일한 경로다.
+msix_config:
+  display_name: Tide
+  publisher_display_name: Tide
+  # 🔴 자리표시자다. Store에 내려면 Partner Center가 이름 예약 때 발급하는
+  # 실제 Identity Name(예: `12345Tide.Tide`)과 Publisher(`CN=<GUID>`)로
+  # 바꿔야 한다. 한 번 게시한 뒤에는 바꿀 수 없다 — 바꾸면 다른 앱이 되고
+  # 기존 사용자가 업데이트를 못 받는다(Inno의 `AppId`와 같은 원리).
+  identity_name: Tide.TideDesktop
+  msix_version: 1.4.0.0
+  logo_path: assets/app-icon/png/tide-app-icon-256.png
+  capabilities: internetClient
+  protocol_activation: dochi
+  # 빌드가 대화형 프롬프트에서 멈추지 않게 한다. 로컬 검증은 개발자 모드의
+  # loose-file 등록(`Add-AppxPackage -Register`)으로 하므로 테스트 인증서를
+  # 신뢰 저장소에 넣을 일이 없고, Store 제출본은 Microsoft가 서명한다.
+  install_certificate: false
+  # 🔴 빌드 폴더 밖으로 뺀다. `[Files]`가 빌드 폴더를 통째로 담기 때문에,
+  # 여기 떨어뜨리면 14MB짜리 msix가 Inno 설치 프로그램 안에 같이 실린다
+  # (실제로 한 번 23.6MB가 나왔다).
+  output_path: .dist-scratch/msix

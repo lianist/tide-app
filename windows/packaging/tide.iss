@@ -17,9 +17,12 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.3.0"
-#define AppPublisher "Dochi"
-#define AppExe "ttabong.exe"
+#define AppVersion "1.4.0"
+#define AppPublisher "Tide"
+#define AppExe "tide.exe"
+; The executable was called ttabong.exe up to 1.3.0. Upgrades have to know the
+; old name to stop it and clear it away.
+#define LegacyExe "ttabong.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
 
 [Setup]
@@ -74,7 +77,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; profile copied aside under another name got picked up and doubled the
 ; installer to 20MB. The size is the tell — a clean package is ~10MB, so check
 ; it after building. Anything else parked in the build folder ships too.
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2,EBWebView,*_wv_*,*profile*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2,EBWebView,*_wv_*,*profile*,*.msix"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -85,7 +88,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 ; Claim dochi:// up front so a sign-in deep link resolves even before the
 ; app has been run once. The app rewrites these on every launch
 ; (`UrlSchemeService`); they are here so uninstall can take them away again.
-Root: HKCU; Subkey: "Software\Classes\dochi"; ValueType: string; ValueName: ""; ValueData: "URL:Dochi Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\dochi"; ValueType: string; ValueName: ""; ValueData: "URL:Tide Protocol"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\dochi"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\dochi\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
 
@@ -94,10 +97,13 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 
 [InstallDelete]
 ; Last version's Flutter assets, so a renamed or dropped asset can't linger
-; and be picked up. Deliberately not {app} itself — that would take the
-; WebView2 profile with it and sign the user out of the dashboard on every
-; upgrade.
+; and be picked up.
 Type: filesandordirs; Name: "{app}\data"
+; The pre-1.4.0 executable and the browser profile it kept beside itself.
+; Without these an upgrade leaves a second, older Tide sitting in the folder —
+; still holding the dochi:// scheme registration until the new one next runs.
+Type: filesandordirs; Name: "{app}\{#LegacyExe}"
+Type: filesandordirs; Name: "{app}\{#LegacyExe}.WebView2"
 
 [UninstallDelete]
 ; WebView2's browser profile, created next to the exe at runtime, plus
@@ -106,7 +112,12 @@ Type: filesandordirs; Name: "{app}\data"
 ; registry entry is gone, so Windows no longer believes Tide is installed and
 ; nothing will ever come back to clean it.
 Type: filesandordirs; Name: "{app}\{#AppExe}.WebView2"
+Type: filesandordirs; Name: "{app}\{#LegacyExe}.WebView2"
 Type: filesandordirs; Name: "{app}"
+; Since 1.4.0 the browser profile lives outside the install folder, so that a
+; read-only install location (Program Files, or an MSIX package) can't break
+; the dashboard. It has to be named here or uninstall leaves it behind.
+Type: filesandordirs; Name: "{localappdata}\Tide"
 
 [Code]
 // 🔴 Tide cannot be closed the way installers normally close an app.
@@ -130,6 +141,10 @@ var
   ResultCode: Integer;
 begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#AppExe}',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Upgrades from 1.3.0 and earlier are still running under the old name,
+  // and that process holds the same folder open.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#LegacyExe}',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   // Windows releases the file handles a moment after the processes go.
   Sleep(1500);

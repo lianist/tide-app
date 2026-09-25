@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ttabong/widgets/hotkey_badge.dart';
+import 'package:tide/widgets/hotkey_badge.dart';
 
 void main() {
   testWidgets('HotkeyBadge renders shortcut keys properly',

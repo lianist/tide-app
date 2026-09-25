@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_win_floating/webview_plugin.dart';
 
 import '../services/app_log.dart';
+import '../services/app_paths.dart';
 import '../services/dashboard_navigation.dart';
 import '../services/dochi_config.dart';
 
@@ -37,7 +39,18 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _controller = WebViewController.fromPlatformCreationParams(
+      // 🔑 Windows needs the browser profile placed deliberately. Left to
+      // itself WebView2 creates it *beside the executable*, which is only
+      // writable by luck: not under Program Files, and never inside an MSIX
+      // package, where the install folder is read-only by design. The
+      // dashboard fails as a blank white rectangle when that write fails.
+      Platform.isWindows
+          ? WindowsWebViewControllerCreationParams(
+              userDataFolder: AppPaths.webViewDataFolder,
+            )
+          : const PlatformWebViewControllerCreationParams(),
+    )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(

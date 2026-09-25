@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ttabong/models/capture_mode.dart';
-import 'package:ttabong/services/capture_api_service.dart';
+import 'package:tide/models/capture_mode.dart';
+import 'package:tide/services/capture_api_service.dart';
 
 void main() {
   group('CaptureApiService Tests', () {

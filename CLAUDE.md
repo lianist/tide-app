@@ -64,6 +64,9 @@ flutter test
 - 🔑 **Windows 웹뷰는 `webview_win_floating`이다**(`webview_flutter`의 Windows 구현으로 등록되므로 양 플랫폼이 같은 `WebViewController`를 쓴다). **`webview_windows`로 돌아가지 않는다** — 그 텍스처 방식은 Windows 11 + 현행 WebView2에서 빈 흰 화면만 나온다. 대신 Windows에선 웹뷰 위에 Flutter 위젯을 그릴 수 없다(네이티브 자식 창).
 - 🔑 **웹뷰 안 내비게이션을 Windows에서 가로막지 않는다.** Google 로그인은 그때그때 다른 호스트를 거쳐서, 호스트 허용 목록은 반드시 로그인을 깨뜨린다. macOS만 off-host를 외부 브라우저로 넘긴다(WKWebView는 Google이 거부한다).
 - 🔑 **Windows 캡처는 `screen_capturer.capture()`를 쓰지 않는다.** 그쪽은 캡처 도구가 떴는지를 포그라운드 프로세스 이름으로 1초 뒤부터 판정해서, 사용자가 드래그하기도 전에 빈 클립보드를 읽고 끝난다. `ScreenshotService`가 직접 `ms-screenclip://`을 띄우고 클립보드를 폴링한다.
-- 🔑 **GUI 빌드에는 콘솔이 없다 — `debugPrint`는 어디에도 남지 않는다.** 실행 중 동작을 남기려면 `AppLog.write`를 쓴다(`%APPDATA%\com.example\ttabong\tide.log`).
+- 🔑 **앱 신원은 전부 `Tide`다** — 실행 파일 `tide.exe`, Dart 패키지 `tide`, 번들 ID `com.tide.app`, MSIX `Tide.TideDesktop`. 단 **`dochi://` 스킴과 `dochi-six.vercel.app`은 바꾸지 않는다** — 상대 제품(코어)의 계약이고, api.md가 redirect_uri를 "글자까지 정확히" 요구한다.
+- 🔑 **WebView2 프로필은 `AppPaths.webViewDataFolder`(LOCALAPPDATA)에 둔다.** 기본값은 실행 파일 *옆*이라 읽기 전용 설치 위치(Program Files·MSIX)에서 쓰기가 실패하고, 증상은 대시보드가 **빈 흰 화면**으로 나온다.
+- 🔑 **빌드 폴더에 아무것도 두지 않는다.** 설치 스크립트가 `Release\*`를 통째로 담아서, 거기 떨어진 것은 전부 배포본에 실린다(웹뷰 프로필 한 번, `tide.msix` 한 번 — 둘 다 크기가 두 배로 튀어서 잡았다). **깨끗한 설치 프로그램은 10MB대다.**
+- 🔑 **GUI 빌드에는 콘솔이 없다 — `debugPrint`는 어디에도 남지 않는다.** 실행 중 동작을 남기려면 `AppLog.write`를 쓴다(`%APPDATA%\Tide\Tide\tide.log` — 첫 줄이 실행 중인 버전을 말한다).
 - `pubspec.lock`은 앱이지만 현재 gitignore에 있다. 배포를 시작할 때 커밋 대상으로 전환할지 결정한다.
 - 커밋 메시지는 한국어, Conventional Commits 접두사(`feat:`, `fix:`, `chore:`, `docs:`).

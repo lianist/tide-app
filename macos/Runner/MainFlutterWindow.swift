@@ -20,7 +20,7 @@ class MainFlutterWindow: NSWindow {
     // `applicationShouldTerminate` intercepts everything else — that logic
     // lives in the app delegate, so this just forwards to it.
     let quitChannel = FlutterMethodChannel(
-      name: "com.dochi.tide/app",
+      name: "com.tide.app/app",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     quitChannel.setMethodCallHandler { call, result in
