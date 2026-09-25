@@ -86,3 +86,14 @@ Windows에서 쓰다 보니 드러난 문제들을 한 번에 잡았다. 넷 다
   - macOS는 규칙을 그대로 둔다 — WKWebView는 Google이 임베디드 웹뷰로 알아보고 아예 거부한다.
 - **Windows 단축키 배지를 `Ctrl ⇧ 1`로 바꿨다.** `Shift`를 글자로 쓰면 배지가 세 칸짜리 단어 줄이 된다. `⇧`는 Windows 자신도 쓰는 기호라 Mac 관례인 `⌘`/`⌥`/`⌃`와는 사정이 다르다.
 - **진단 로그(`AppLog`)를 더했다.** `%APPDATA%\com.example\ttabong\tide.log`에 실행·캡처·업로드·웹뷰 이동이 한 줄씩 쌓인다. GUI 빌드는 콘솔이 없어서 `debugPrint`가 어디에도 남지 않는다 — 브라우저나 사람 손이 있어야 재현되는 두 플로(로그인·캡처)를 이것 없이 디버깅할 방법이 없었다. 기존 `AuthService`의 `auth.log`도 여기로 합쳤다.
+
+## 2026-09-25 — Windows 배포용 설치 프로그램
+
+`Release` 폴더(69MB, DLL 15개 + `data\`)를 그대로 건네는 대신 단일 `Tide-Setup-1.0.0.exe`(10.2MB)를 만든다. Inno Setup 스크립트는 `windows/packaging/tide.iss`, 산출물은 `.dist-scratch/windows/`(gitignore됨)에 떨어진다. 빌드 방법은 `README.md`에 있다.
+
+- **사용자별 설치로 갔다**(`PrivilegesRequired=lowest`, `%LOCALAPPDATA%\Programs\Tide`). UAC를 안 띄우는 게 트레이 유틸리티답기도 하지만, 진짜 이유는 **WebView2가 실행 파일 옆에 프로필 폴더(`ttabong.exe.WebView2\`)를 만든다**는 것이다 — Program Files에 깔면 그 폴더를 못 만들어 대시보드가 뜨지 않는다. `UrlSchemeService`가 어차피 HKCU에 스킴을 쓰므로 나머지도 이미 사용자별이다.
+- 설치 항목: 시작 메뉴 바로가기, 선택형 바탕화면 아이콘, 제거 프로그램 등록, `dochi://` 스킴(설치 시점에 등록해 두면 첫 실행 전에도 딥링크가 앱을 찾는다 — 앱이 매 실행마다 다시 쓰지만, 제거할 때 같이 지우려면 설치 프로그램이 알고 있어야 한다).
+- **로그인 시 자동 실행은 넣지 않았다** — 로드맵상 아직 하지 않은 작업이라 설치 프로그램이 먼저 앞서 나가지 않게 했다.
+- 실행 파일 메타데이터의 `FileDescription`을 `ttabong` → `Tide`로 바꿨다(작업 관리자·파일 속성에 보이는 이름). `CompanyName`/`ProductName`은 일부러 그대로 뒀다 — 그 둘이 `%APPDATA%\<회사>\<제품>` 경로를 정하므로, 바꾸면 저장된 세션과 로그가 다른 곳으로 옮겨 가 사용자가 다시 로그인해야 한다.
+- 설치 → 실행 → 캡처 → 제거까지 실제로 돌려서 확인했다. 제거 후 프로그램 폴더·시작 메뉴·레지스트리 스킴·제거 항목이 모두 사라지는 것까지 봤다.
+- ⚠️ 코드 서명 인증서가 없어서 SmartScreen 경고가 뜬다. macOS 쪽은 이미 실제 팀 서명(`WB5PG6BWM2`)을 쓰는데 Windows는 아직이다.

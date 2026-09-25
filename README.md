@@ -62,4 +62,21 @@ flutter build windows --release
 # build\windows\x64\runner\Release\ttabong.exe
 ```
 
-산출물은 단일 실행 파일이 아니다 — `Release` 폴더 통째로 배포해야 한다(`flutter_windows.dll`·플러그인 DLL·`data\` 포함).
+산출물은 단일 실행 파일이 아니다 — `Release` 폴더 통째로 배포해야 한다(`flutter_windows.dll`·플러그인 DLL·`data\` 포함). 배포용 단일 파일은 아래 설치 프로그램으로 만든다.
+
+## Windows 배포용 설치 프로그램 만들기
+
+`Release` 폴더 69MB를 그대로 건네는 대신, [Inno Setup](https://jrsoftware.org/isinfo.php)으로 단일 `Tide-Setup-<버전>.exe`(약 10MB)를 만든다. 스크립트는 `windows/packaging/tide.iss`에 있다.
+
+```powershell
+winget install JRSoftware.InnoSetup          # 처음 한 번만
+
+flutter build windows --release
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" windows\packaging\tide.iss
+# .dist-scratch\windows\Tide-Setup-1.0.0.exe
+```
+
+- **사용자별 설치**다(`PrivilegesRequired=lowest`) — UAC를 띄우지 않고 `%LOCALAPPDATA%\Programs\Tide`에 깔린다. Program Files에 깔면 WebView2가 실행 파일 옆에 만드는 프로필 폴더(`ttabong.exe.WebView2\`)를 못 써서 대시보드가 뜨지 않는다.
+- 시작 메뉴 바로가기·제거 프로그램 등록·`dochi://` 스킴 등록까지 들어가고, 제거하면 셋 다 같이 지워진다.
+- 버전을 올릴 때는 `tide.iss`의 `AppVersion`과 `pubspec.yaml`의 `version`을 같이 고친다. `AppId`는 **절대 바꾸지 않는다** — 그게 바뀌면 업그레이드가 아니라 별도 설치가 된다.
+- 코드 서명 인증서는 아직 없다. 서명하지 않은 설치 프로그램이라 처음 받은 사용자에게는 SmartScreen 경고가 뜬다.
