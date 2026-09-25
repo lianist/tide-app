@@ -17,7 +17,7 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.2.0"
+#define AppVersion "1.3.0"
 #define AppPublisher "Dochi"
 #define AppExe "ttabong.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
@@ -92,6 +92,57 @@ Root: HKCU; Subkey: "Software\Classes\dochi\shell\open\command"; ValueType: stri
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
+[InstallDelete]
+; Last version's Flutter assets, so a renamed or dropped asset can't linger
+; and be picked up. Deliberately not {app} itself — that would take the
+; WebView2 profile with it and sign the user out of the dashboard on every
+; upgrade.
+Type: filesandordirs; Name: "{app}\data"
+
 [UninstallDelete]
-; WebView2's browser profile, created next to the exe at runtime.
+; WebView2's browser profile, created next to the exe at runtime, plus
+; anything else left in the folder. Without the second line an uninstall that
+; could not delete a locked file leaves the folder behind for good: the
+; registry entry is gone, so Windows no longer believes Tide is installed and
+; nothing will ever come back to clean it.
 Type: filesandordirs; Name: "{app}\{#AppExe}.WebView2"
+Type: filesandordirs; Name: "{app}"
+
+[Code]
+// 🔴 Tide cannot be closed the way installers normally close an app.
+//
+// It is a tray utility whose window-close is deliberately "hide, don't quit"
+// (the global capture shortcuts are registered on the process and die with
+// it), so it survives the WM_CLOSE that CloseApplications/Restart Manager
+// sends. It then holds ttabong.exe and every plugin DLL open, and both
+// install and uninstall fail to replace or delete them.
+//
+// What that looked like in the field: uninstall removed data\, the
+// uninstaller and the registry entry, but left the exe and DLLs locked in
+// place — Windows then believed Tide was gone while a folder full of stale
+// files sat there, and the next release collided with it.
+//
+// So the process tree is ended outright before either operation. /T matters
+// as much as /F: WebView2 runs as child processes of the app and holds files
+// in the same folder, and they outlive a plain kill of the parent.
+procedure StopTide();
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#AppExe}',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Windows releases the file handles a moment after the processes go.
+  Sleep(1500);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopTide();
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  StopTide();
+  Result := True;
+end;
