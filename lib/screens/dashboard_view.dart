@@ -86,9 +86,10 @@ class _DashboardViewState extends State<DashboardView> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     AppLog.write(_tag, 'loaded ${uri.host}${uri.path}');
-    // Only dochi's own pages, and only where the problem exists.
-    if (Platform.isWindows && uri.host == dashboardUri.host) {
-      _controller.runJavaScript(_passwordRevealScript);
+    // Only dochi's own pages — never Google's sign-in, never anywhere else
+    // the webview travels.
+    if (uri.host == dashboardUri.host) {
+      _controller.runJavaScript(_authPagePolishScript);
     }
   }
 
@@ -107,50 +108,105 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
-  /// Gives dochi's login and sign-up forms a password reveal that works.
+  /// Two fixes to dochi's own auth pages, applied in the app's webview only.
   ///
-  /// WebView2 draws Edge's native reveal button (`::-ms-reveal`) inside every
-  /// password field but doesn't act on it — that eye is browser-shell UI the
-  /// embedded control never wires up, so clicking it does nothing at all. It
-  /// is hidden here and replaced with a plain text toggle.
+  /// Neither is a change to the website — this repo can't touch dochi's
+  /// source, and both problems are specific to being hosted in a webview:
   ///
-  /// Runs after the page is loaded (and so after hydration): the button is
-  /// appended as the label's last child and the input itself is never moved,
-  /// because re-parenting a node React is still tracking makes it throw and
-  /// blank the page.
-  static const String _passwordRevealScript = r'''
+  /// 1. **A password reveal that works.** WebView2 draws Edge's native reveal
+  ///    button (`::-ms-reveal`) inside every password field but never wires it
+  ///    up — it is browser-shell UI, so clicking the eye does nothing at all.
+  ///    WKWebView draws no reveal at all. Either way the field is unreadable,
+  ///    so the native one is hidden and replaced.
+  /// 2. **No "← 대시보드로" link.** In the app the webview *starts* at the
+  ///    dashboard and is sent here by dochi because there is no session yet,
+  ///    so the link only bounces back to this same page.
+  ///
+  /// Runs after the page has loaded, so after React has hydrated. Nothing is
+  /// moved or removed from the DOM — the button is appended and the link is
+  /// merely hidden — because re-parenting or deleting a node React is still
+  /// tracking makes it throw and blank the whole page.
+  static const String _authPagePolishScript = r'''
 (() => {
-  if (window.__tideReveal) return;
-  window.__tideReveal = true;
-  const SHOW = '보기';
-  const HIDE = '숨기기';
-  const style = document.createElement('style');
+  if (window.__tidePolish) return;
+  window.__tidePolish = true;
+
+  var BRAND = '#444892';
+  var MUTED = '#9ca3af';
+  var EYE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"' +
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+    ' stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8' +
+    '-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+  var style = document.createElement('style');
   style.textContent = 'input::-ms-reveal{display:none!important;}';
   document.head.appendChild(style);
-  const decorate = (input) => {
+
+  function decorate(input) {
     if (input.dataset.tideReveal) return;
-    const host = input.parentElement;
+    var host = input.parentElement;
     if (!host) return;
     input.dataset.tideReveal = '1';
     host.style.position = 'relative';
-    input.style.paddingRight = '3.5rem';
-    const button = document.createElement('button');
+    input.style.paddingRight = '2.5rem';
+
+    var button = document.createElement('button');
     button.type = 'button';
-    button.textContent = SHOW;
-    button.style.cssText = 'position:absolute;right:0.6rem;bottom:0.55rem;' +
-      'border:0;background:none;padding:0;font:inherit;font-size:0.8125rem;' +
-      'color:#6b7280;cursor:pointer;';
-    button.addEventListener('click', () => {
-      const reveal = input.type === 'password';
-      input.type = reveal ? 'text' : 'password';
-      button.textContent = reveal ? HIDE : SHOW;
-    });
+    button.tabIndex = -1;
+    button.setAttribute('aria-label', '누르고 있는 동안 비밀번호 보기');
+    button.innerHTML = EYE;
+    button.style.cssText = 'position:absolute;right:0.6rem;display:flex;' +
+      'align-items:center;justify-content:center;width:1.5rem;height:1.5rem;' +
+      'border:0;background:none;padding:0;color:' + MUTED + ';cursor:pointer;';
+
+    // Measured off the input itself rather than pinned to the label's bottom
+    // edge: the label also holds its caption text, so "bottom" is nowhere
+    // near the middle of the field, and the button drifted as fonts loaded.
+    function place() {
+      button.style.top = (input.offsetTop + input.offsetHeight / 2) + 'px';
+      button.style.transform = 'translateY(-50%)';
+    }
+
+    // Held, not toggled: the password is visible exactly as long as the
+    // button is down, and hiding it again is releasing the mouse rather than
+    // remembering to click a second time.
+    function show(event) {
+      // Keeps the caret where the user left it — without this the mousedown
+      // pulls focus out of the field.
+      if (event) event.preventDefault();
+      input.type = 'text';
+      button.style.color = BRAND;
+    }
+    function hide() {
+      input.type = 'password';
+      button.style.color = MUTED;
+    }
+
+    button.addEventListener('pointerdown', show);
+    button.addEventListener('pointerup', hide);
+    button.addEventListener('pointercancel', hide);
+    button.addEventListener('pointerleave', hide);
+    // The release can land anywhere if the pointer wandered off the button.
+    window.addEventListener('pointerup', hide);
+    window.addEventListener('blur', hide);
+
     host.appendChild(button);
-  };
-  const scan = () =>
-    document.querySelectorAll('input[type=password]').forEach(decorate);
-  scan();
-  new MutationObserver(scan)
+    place();
+    if (window.ResizeObserver) new ResizeObserver(place).observe(input);
+  }
+
+  function apply() {
+    var inputs = document.querySelectorAll('input[type=password]');
+    for (var i = 0; i < inputs.length; i++) decorate(inputs[i]);
+
+    if (/^\/(login|signup|reset-password)/.test(location.pathname)) {
+      var links = document.querySelectorAll('a[href^="/dashboard"]');
+      for (var j = 0; j < links.length; j++) links[j].style.display = 'none';
+    }
+  }
+
+  apply();
+  new MutationObserver(apply)
     .observe(document.body, {childList: true, subtree: true});
 })();
 ''';
