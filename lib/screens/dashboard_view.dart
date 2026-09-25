@@ -6,8 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/app_log.dart';
-import '../services/dashboard_refresh.dart';
-import 'dashboard_url.dart';
+import '../services/dashboard_navigation.dart';
+import '../services/dochi_config.dart';
 
 /// The dashboard webview — one widget for both desktops.
 ///
@@ -32,7 +32,7 @@ class _DashboardViewState extends State<DashboardView> {
   static const _tag = 'Dashboard';
 
   late final WebViewController _controller;
-  StreamSubscription<void>? _refreshSubscription;
+  StreamSubscription<Uri>? _navigationSubscription;
 
   @override
   void initState() {
@@ -48,10 +48,7 @@ class _DashboardViewState extends State<DashboardView> {
         ),
       )
       ..loadRequest(dashboardUri);
-    // A capture that created or completed a task leaves the rendered list
-    // stale; nothing in the page knows to go and look again.
-    _refreshSubscription =
-        DashboardRefresh.onRequested.listen((_) => _reload());
+    _navigationSubscription = DashboardNavigation.onRequested.listen(_goTo);
   }
 
   /// 🔑 On Windows, navigation is **not** policed, and deliberately so.
@@ -95,14 +92,18 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
-  Future<void> _reload() async {
+  /// Always a fresh `loadRequest`, never `reload()`: the caller is telling us
+  /// which page should be on screen, and the user may have wandered off it —
+  /// reloading whatever they wandered onto is not what was asked for.
+  Future<void> _goTo(Uri uri) async {
+    // Logged before the load, not after: dochi bounces a signed-out webview
+    // to /login, so `onPageFinished` alone can't tell you where the app
+    // *meant* to go — every destination looks like the login page.
+    AppLog.write(_tag, 'navigating to $uri');
     try {
-      // Straight back to the dashboard rather than `reload()`: the reason to
-      // refresh is a capture that changed the task list, and the user may
-      // have wandered off that list since.
-      await _controller.loadRequest(dashboardUri);
+      await _controller.loadRequest(uri);
     } catch (e) {
-      AppLog.write(_tag, 'refresh failed: $e');
+      AppLog.write(_tag, 'navigation to ${uri.path} failed: $e');
     }
   }
 
@@ -156,7 +157,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   @override
   void dispose() {
-    _refreshSubscription?.cancel();
+    _navigationSubscription?.cancel();
     super.dispose();
   }
 

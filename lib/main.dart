@@ -11,7 +11,8 @@ import 'screens/login_screen.dart';
 import 'services/app_log.dart';
 import 'services/auth_service.dart';
 import 'services/capture_api_service.dart';
-import 'services/dashboard_refresh.dart';
+import 'services/dashboard_navigation.dart';
+import 'services/dochi_config.dart';
 import 'services/hotkey_service.dart';
 import 'services/notification_service.dart';
 import 'services/screenshot_service.dart';
@@ -22,7 +23,7 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await hotKeyManager.unregisterAll();
-  await NotificationService.initialize();
+  await NotificationService.initialize(onTap: _openCaptureInHistory);
   await windowManager.ensureInitialized();
   await _configureWindow();
   UrlSchemeService.register();
@@ -34,6 +35,17 @@ void main() async {
       'signed in = $isLoggedIn');
 
   runApp(TtabongApp(initialIsLoggedIn: isLoggedIn));
+}
+
+/// Clicking a capture notification opens the agent run behind it.
+///
+/// The window is raised first because the notification may well be the only
+/// part of the app the user can see — it keeps running with its window closed
+/// so the global shortcuts stay registered.
+Future<void> _openCaptureInHistory(String jobLogId) async {
+  DashboardNavigation.goTo(historyUri(jobLogId));
+  await windowManager.show();
+  await windowManager.focus();
 }
 
 /// The Windows half of what `LSUIElement` + `AppDelegate` do on macOS: keep
@@ -140,13 +152,15 @@ class _AppRootState extends State<AppRoot> with WindowListener {
     // OS notifications, not an in-window SnackBar — the window may be closed
     // (the app keeps running for the global shortcuts). One push per message
     // naturally satisfies api.md's "건마다 알림을 띄운다" for multiple created tasks.
+    // The payload is what makes the click land on this run rather than on the
+    // dashboard in general (`_openCaptureInHistory`).
     for (final message in messages) {
-      NotificationService.show(message);
+      NotificationService.show(message, payload: result.upload.jobLogId);
     }
     // The task list the dashboard is showing was rendered before this
     // capture existed, and nothing in the webview knows that changed.
     if (result.upload.status == CaptureUploadStatus.success) {
-      DashboardRefresh.request();
+      DashboardNavigation.refresh();
     }
     // §인증: a refresh that fails mid-capture means the session is gone —
     // fall back to the login screen next time the window is shown (a no-op

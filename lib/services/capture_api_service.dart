@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/capture_mode.dart';
@@ -17,7 +19,17 @@ class CaptureUploadResult {
   /// `completed`/`failed` there's exactly one.
   final List<String> notifications;
 
-  const CaptureUploadResult(this.status, {this.notifications = const []});
+  /// The agent run this capture produced, if the server got far enough to
+  /// record one. It identifies the entry a notification click should open in
+  /// the history page — see [historyUri]. Null for a request that never
+  /// reached the agent (a timeout or a server error carries no id).
+  final String? jobLogId;
+
+  const CaptureUploadResult(
+    this.status, {
+    this.notifications = const [],
+    this.jobLogId,
+  });
 
   /// No usable session — either never signed in, or the session was dropped
   /// (e.g. a rejected token refresh). The caller should fall back to the
@@ -28,8 +40,12 @@ class CaptureUploadResult {
   factory CaptureUploadResult.failed(String detail) =>
       CaptureUploadResult(CaptureUploadStatus.failed, notifications: [detail]);
 
-  factory CaptureUploadResult.success(List<String> notifications) =>
-      CaptureUploadResult(CaptureUploadStatus.success, notifications: notifications);
+  factory CaptureUploadResult.success(List<String> notifications, {String? jobLogId}) =>
+      CaptureUploadResult(
+        CaptureUploadStatus.success,
+        notifications: notifications,
+        jobLogId: jobLogId,
+      );
 }
 
 /// Sends a capture to the Dochi capture API (`API-3` in the guideline doc).
@@ -69,7 +85,11 @@ class CaptureApiService {
       final body = jsonDecode(await response.stream.bytesToString()) as Map<String, dynamic>;
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return CaptureUploadResult.success(_notificationsFor(body['data'] as Map<String, dynamic>));
+        final data = body['data'] as Map<String, dynamic>;
+        return CaptureUploadResult.success(
+          notificationsFor(data),
+          jobLogId: data['jobLogId'] as String?,
+        );
       }
       if (response.statusCode == 401) {
         return CaptureUploadResult.notSignedIn();
@@ -90,21 +110,41 @@ class CaptureApiService {
   /// defined as human-readable Korean safe to show as-is. Switching on
   /// `code` here is exactly the trap the 2026-09-24 app-department notice
   /// warned about (an exhaustive `switch` with no default throws on an
-  /// unknown value).
-  List<String> _notificationsFor(Map<String, dynamic> data) {
-    final created = data['created'] as List<dynamic>? ?? [];
-    if (created.isNotEmpty) {
-      return created.map((task) => '"${(task as Map<String, dynamic>)['title']}" added').toList();
+  /// unknown value). `DUPLICATE_TASK`, announced on 2026-09-25, arrived and
+  /// needed nothing here precisely because of that.
+  @visibleForTesting
+  static List<String> notificationsFor(Map<String, dynamic> data) {
+    final messages = <String>[];
+
+    for (final task in data['created'] as List<dynamic>? ?? const []) {
+      messages.add('"${(task as Map<String, dynamic>)['title']}" added');
     }
+
     final completed = data['completed'] as Map<String, dynamic>?;
     if (completed != null) {
-      return ['Completed: "${completed['title']}"'];
+      messages.add('Completed: "${completed['title']}"');
     }
+
+    // The all-duplicates case arrives here as an ordinary `failed` outcome,
+    // so its own `message` (which already names the existing task) covers it.
     final failure = data['failure'] as Map<String, dynamic>?;
     if (failure != null) {
-      return [failure['message'] as String? ?? 'No task found.'];
+      messages.add(failure['message'] as String? ?? 'No task found.');
     }
-    return const [];
+
+    // What's left is the *partial* case: some tasks were created and others
+    // were dropped for already existing. Without this the dropped ones vanish
+    // silently, and the user is left wondering why one capture of three
+    // things produced one notification.
+    final duplicates = data['duplicates'] as List<dynamic>? ?? const [];
+    if (duplicates.isNotEmpty && failure == null) {
+      final first = (duplicates.first as Map<String, dynamic>)['title'];
+      messages.add(duplicates.length == 1
+          ? '"$first" is already on your list'
+          : '"$first" and ${duplicates.length - 1} more are already on your list');
+    }
+
+    return messages;
   }
 
   Future<http.StreamedResponse> _send({
