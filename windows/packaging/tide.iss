@@ -49,6 +49,10 @@ WizardStyle=modern
 ; upgrade will usually find it running. Let the restart manager close it.
 CloseApplications=yes
 RestartApplications=no
+; Two languages otherwise means a "Select Setup Language" dialog before the
+; wizard even starts. `auto` skips it whenever Windows' own language is one
+; of the two, which is every user this is aimed at.
+ShowLanguageDialog=auto
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
@@ -58,9 +62,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#BuildDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Everything the build emits, whatever it turns out to be. Deliberately not a
+; list of exe + *.dll + data\: a plugin added later can drop other files next
+; to the executable (a `native_assets.json`, a data file, a folder of its
+; own), and a hand-kept list would ship a build that is quietly missing one.
+; This way `flutter build` + recompile is the whole release procedure.
+;
+; The exclusion is WebView2's browser profile, which only exists if the app
+; was *run* from the build folder — the developer's cookies and cache, never
+; something to ship.
+Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
