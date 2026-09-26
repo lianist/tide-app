@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 
 import 'app_log.dart';
 import 'app_paths.dart';
-import 'windows_theme.dart';
 
 /// OS-level (Notification Center / Action Center) pushes for capture results
 /// — needed because the main window can be closed while the app keeps running
@@ -77,12 +76,10 @@ class NotificationService {
   static Future<String?> _unpackWindowsIcon() async {
     if (!Platform.isWindows) return null;
     try {
-      final light = WindowsTheme.isLight;
-      final bytes = await rootBundle.load(_headerIconAsset(light));
+      final bytes = await rootBundle.load(_headerIconAsset);
       final file = File(AppPaths.notificationIconFile);
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
-      _unpackedForLightTheme = light;
       return file.path;
     } catch (e) {
       AppLog.write(_tag, 'could not unpack the toast icon: $e');
@@ -90,23 +87,17 @@ class NotificationService {
     }
   }
 
-  /// Which theme the file on disk was written for, so a change can be
-  /// noticed. Null until the first unpack.
-  static bool? _unpackedForLightTheme;
-
   /// 🔑 A toast shows **two** Tide marks and they are not the same image.
   ///
-  /// This is the small one beside the app name. It sits on the toast's own
-  /// chrome, which follows the Windows theme, so which symbol is legible
-  /// depends on that: the reverse symbol is a near-white circle that
-  /// disappears on a light toast, and the plain one is an indigo circle that
-  /// goes muddy on a dark one.
+  /// This is the small one beside the app name, and it is the plain symbol —
+  /// an indigo circle — on every theme. The reverse symbol reads better on a
+  /// dark toast, but it is a near-white circle that disappears entirely on a
+  /// light one, and swapping between them by theme was more machinery than
+  /// the difference was worth: the indigo circle is legible on both.
   ///
   /// 256px rather than a smaller size: Windows scales it by the display's
   /// scaling factor, and a 48px source blown up is visible.
-  static String _headerIconAsset(bool light) => light
-      ? 'assets/brand/tide-symbol-256.png'
-      : 'assets/brand/tide-symbol-reverse-256.png';
+  static const _headerIconAsset = 'assets/brand/tide-symbol-256.png';
 
   /// The large mark in the toast's body. The app icon proper, and the same
   /// one either way — it sits on the notification's content area, which is
@@ -172,14 +163,6 @@ class NotificationService {
     String title = 'Tide',
     String? payload,
   }) async {
-    // The app is a tray utility that runs for days, so the theme can change
-    // long after start-up. The registered path never changes — only what is
-    // written there — so switching costs one small file write and no
-    // re-registration.
-    if (Platform.isWindows && WindowsTheme.isLight != _unpackedForLightTheme) {
-      AppLog.write(_tag, 'Windows theme changed — rewriting the toast icon');
-      await _unpackWindowsIcon();
-    }
     await _plugin.show(
       id: _nextId++,
       title: title,
