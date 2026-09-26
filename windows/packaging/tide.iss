@@ -100,9 +100,19 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Excludes: "*.WebView2,EBWebView,*_wv_*,*profile*,*.msix"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
+; 🔑 `AppUserModelID` is what makes toast notifications carry the app's name
+; and icon in their header.
+;
+; An unpackaged Win32 app cannot put them there at runtime. Windows looks the
+; app id up in the Start Menu, and takes the name and icon from the shortcut
+; it finds — so without the id on the shortcut there is nothing to find, and
+; every toast shows a blank square. It has to be the exact string the app
+; passes to the notification platform (`NotificationService`), and the
+; shortcut has to be in the Start Menu, which is why the first entry carries
+; it and the desktop one does not need to.
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "com.tide.app"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "com.tide.app"; Tasks: desktopicon
 
 [Registry]
 ; Claim dochi:// up front so a sign-in deep link resolves even before the

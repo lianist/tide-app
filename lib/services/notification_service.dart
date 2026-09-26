@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path/path.dart' as p;
 
 import 'app_log.dart';
 import 'app_paths.dart';
+import 'windows_theme.dart';
 
 /// OS-level (Notification Center / Action Center) pushes for capture results
 /// — needed because the main window can be closed while the app keeps running
@@ -40,8 +42,9 @@ class NotificationService {
           appName: 'Tide',
           appUserModelId: _windowsAppUserModelId,
           guid: _windowsGuid,
-          // Without this the toast carries no icon at all — a blank square
-          // where the app's mark should be, on every capture result.
+          // The mark beside the app name in the toast's header. Windows
+          // reads it from this path — without it the header shows a blank
+          // square on every capture result.
           iconPath: await _unpackWindowsIcon(),
         ),
       ),
@@ -74,10 +77,12 @@ class NotificationService {
   static Future<String?> _unpackWindowsIcon() async {
     if (!Platform.isWindows) return null;
     try {
-      final bytes = await rootBundle.load(_windowsIconAsset);
+      final light = WindowsTheme.isLight;
+      final bytes = await rootBundle.load(_headerIconAsset(light));
       final file = File(AppPaths.notificationIconFile);
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      _unpackedForLightTheme = light;
       return file.path;
     } catch (e) {
       AppLog.write(_tag, 'could not unpack the toast icon: $e');
@@ -85,9 +90,28 @@ class NotificationService {
     }
   }
 
-  /// 256px, not one of the smaller sizes: Windows scales the toast icon by
-  /// display scaling, and scaling a 48px source up is visible.
-  static const _windowsIconAsset = 'assets/app-icon/png/tide-app-icon-256.png';
+  /// Which theme the file on disk was written for, so a change can be
+  /// noticed. Null until the first unpack.
+  static bool? _unpackedForLightTheme;
+
+  /// 🔑 A toast shows **two** Tide marks and they are not the same image.
+  ///
+  /// This is the small one beside the app name. It sits on the toast's own
+  /// chrome, which follows the Windows theme, so which symbol is legible
+  /// depends on that: the reverse symbol is a near-white circle that
+  /// disappears on a light toast, and the plain one is an indigo circle that
+  /// goes muddy on a dark one.
+  ///
+  /// 256px rather than a smaller size: Windows scales it by the display's
+  /// scaling factor, and a 48px source blown up is visible.
+  static String _headerIconAsset(bool light) => light
+      ? 'assets/brand/tide-symbol-256.png'
+      : 'assets/brand/tide-symbol-reverse-256.png';
+
+  /// The large mark in the toast's body. The app icon proper, and the same
+  /// one either way — it sits on the notification's content area, which is
+  /// its own surface.
+  static const _bodyLogoAsset = 'assets/app-icon/png/tide-app-icon-256.png';
 
   static void _handleResponse(NotificationResponse response) {
     final payload = response.payload;
@@ -96,19 +120,76 @@ class NotificationService {
     _onTap?.call(payload);
   }
 
+  /// The large Tide logo in the toast's body.
+  ///
+  /// Unlike the header mark, this one travels **with the notification**
+  /// rather than with the app's shell registration, so it shows even where
+  /// that registration is wrong or stale. Windows caches an app's registered
+  /// icon aggressively; this does not go through that cache.
+  static final WindowsImage? _toastLogo = _buildToastLogo();
+
+  static WindowsImage? _buildToastLogo() {
+    if (!Platform.isWindows) return null;
+    try {
+      final uri = _toastLogoUri();
+      if (uri == null) return null;
+      return WindowsImage(
+        uri,
+        altText: 'Tide',
+        placement: WindowsImagePlacement.appLogoOverride,
+      );
+    } catch (e) {
+      AppLog.write(_tag, 'no toast logo: $e');
+      return null;
+    }
+  }
+
+  /// Where the shell can read the mark from.
+  ///
+  /// The plugin's own helper picks the right scheme — `ms-appx:` inside an
+  /// MSIX package, a file path outside one — but it builds that file path
+  /// against the **working directory**, which is not the executable's folder
+  /// when the app is started by a `dochi://` link or from a terminal. So the
+  /// file case is rebuilt from [Platform.resolvedExecutable], and the helper
+  /// is kept for the packaged case and as the fallback.
+  static Uri? _toastLogoUri() {
+    final fromPlugin = WindowsImage.getAssetUri(_bodyLogoAsset);
+    if (fromPlugin.scheme != 'file') return fromPlugin;
+
+    final beside = File(p.join(
+      File(Platform.resolvedExecutable).parent.path,
+      'data',
+      'flutter_assets',
+      _bodyLogoAsset,
+    ));
+    return beside.existsSync()
+        ? Uri.file(beside.path, windows: true)
+        : fromPlugin;
+  }
+
   static Future<void> show(
     String body, {
     String title = 'Tide',
     String? payload,
   }) async {
+    // The app is a tray utility that runs for days, so the theme can change
+    // long after start-up. The registered path never changes — only what is
+    // written there — so switching costs one small file write and no
+    // re-registration.
+    if (Platform.isWindows && WindowsTheme.isLight != _unpackedForLightTheme) {
+      AppLog.write(_tag, 'Windows theme changed — rewriting the toast icon');
+      await _unpackWindowsIcon();
+    }
     await _plugin.show(
       id: _nextId++,
       title: title,
       body: body,
       payload: payload,
-      notificationDetails: const NotificationDetails(
-        macOS: DarwinNotificationDetails(),
-        windows: WindowsNotificationDetails(),
+      notificationDetails: NotificationDetails(
+        macOS: const DarwinNotificationDetails(),
+        windows: WindowsNotificationDetails(
+          images: [?_toastLogo],
+        ),
       ),
     );
   }
