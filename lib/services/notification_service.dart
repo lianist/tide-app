@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'app_log.dart';
+import 'app_paths.dart';
 
 /// OS-level (Notification Center / Action Center) pushes for capture results
 /// — needed because the main window can be closed while the app keeps running
@@ -32,12 +34,15 @@ class NotificationService {
     _onTap = onTap;
 
     await _plugin.initialize(
-      settings: const InitializationSettings(
-        macOS: DarwinInitializationSettings(),
+      settings: InitializationSettings(
+        macOS: const DarwinInitializationSettings(),
         windows: WindowsInitializationSettings(
           appName: 'Tide',
           appUserModelId: _windowsAppUserModelId,
           guid: _windowsGuid,
+          // Without this the toast carries no icon at all — a blank square
+          // where the app's mark should be, on every capture result.
+          iconPath: await _unpackWindowsIcon(),
         ),
       ),
       onDidReceiveNotificationResponse: _handleResponse,
@@ -50,6 +55,39 @@ class NotificationService {
           ?.requestPermissions(alert: true, badge: true, sound: true);
     }
   }
+
+  /// Writes the app icon out to a real file and returns its path.
+  ///
+  /// 🔑 Windows reads a toast's icon from disk — there is no way to hand it
+  /// bytes — and Flutter assets live inside the bundle, which on Windows
+  /// means a file the shell will not follow into. So it gets copied out.
+  ///
+  /// Rewritten on every launch rather than only when missing: the file is a
+  /// copy of something that ships with the build, so a truncated or
+  /// half-written one from a previous crash fixes itself, and an icon
+  /// changed in a later version replaces the old one. It costs one small
+  /// write at startup.
+  ///
+  /// Null on failure, which is what the setting takes to mean "no icon" —
+  /// the same place we were before, and never a reason to lose the
+  /// notification itself.
+  static Future<String?> _unpackWindowsIcon() async {
+    if (!Platform.isWindows) return null;
+    try {
+      final bytes = await rootBundle.load(_windowsIconAsset);
+      final file = File(AppPaths.notificationIconFile);
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      return file.path;
+    } catch (e) {
+      AppLog.write(_tag, 'could not unpack the toast icon: $e');
+      return null;
+    }
+  }
+
+  /// 256px, not one of the smaller sizes: Windows scales the toast icon by
+  /// display scaling, and scaling a 48px source up is visible.
+  static const _windowsIconAsset = 'assets/app-icon/png/tide-app-icon-256.png';
 
   static void _handleResponse(NotificationResponse response) {
     final payload = response.payload;

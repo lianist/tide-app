@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.0+9
+version: 1.8.1+10
 
 environment:
   sdk: ^3.13.4
@@ -100,6 +100,9 @@ flutter:
     # Windows tray. The macOS template PNG above is monochrome and relies on
     # macOS auto-inverting it; Windows does no such thing, so it needs its own.
     - assets/tray/tide-tray.ico
+    # Windows 토스트 알림의 아이콘. 에셋 번들 안에서는 셸이 못 읽어서
+    # 실행할 때 파일로 꺼내 쓴다 — `NotificationService._unpackWindowsIcon`.
+    - assets/app-icon/png/tide-app-icon-256.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

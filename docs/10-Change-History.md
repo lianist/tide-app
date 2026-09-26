@@ -305,3 +305,16 @@ SmartScreen 경고를 없애는 유일한 무료 경로가 Store다(MSIX는 Micr
 - **`display_name`을 `Tide AI`로 맞췄다.** Partner Center에 예약한 이름과 글자까지 같아야 업로드가 통과한다. `identity_name: Tide.TideAI`가 그 이름에서 파생된 값이다.
 - **`output_name`을 고정했다.** 안 두면 파일 이름이 `display_name`을 따라가서, Store 이름이 바뀔 때마다 릴리스 절차의 경로가 같이 바뀐다.
 - **이제부터 모든 릴리스에 MSIX를 같이 만든다.** `pubspec`의 `version:` 하나만 고치면 설치 프로그램과 MSIX가 같은 번호로 따라온다(1.7.0에서 자동화).
+
+## 2026-09-27 — 1.8.1: 알림에 Tide 아이콘이 나온다
+
+Windows 토스트에 아이콘이 없었다. 캡처할 때마다 앱 마크 자리가 빈 사각형이었다.
+
+Windows는 토스트 아이콘을 **디스크의 파일 경로**에서 읽는다 — 바이트를 건네줄 방법이 없다. 그런데 Flutter 에셋은 번들 안에 있어서 셸이 따라 들어가지 못한다. 그래서 실행할 때 아이콘을 `%LOCALAPPDATA%\Tide\notification-icon.png`로 꺼내 쓰고, 그 경로를 알림 초기화에 넘긴다.
+
+- 확인: 실행 뒤 `HKCU\Software\Classes\AppUserModelId\com.tide.app`의 `IconUri`가 그 파일을 가리킨다. 이 값이 **원래는 아예 없었다** — 그게 아이콘이 안 나온 이유다.
+- 매 실행마다 다시 쓴다. 빌드에 딸려 오는 파일의 사본이라, 이전에 잘못 쓰인 것이 스스로 고쳐지고 다음 버전에서 아이콘이 바뀌면 그대로 갈린다.
+- 꺼내기가 실패하면 `null`을 넘긴다 — 아이콘만 없던 예전 상태로 돌아갈 뿐, 알림 자체를 잃지 않는다.
+- 지우는 것은 제거 프로그램이 `%LOCALAPPDATA%\Tide`를 통째로 지우면서 같이 된다.
+
+MSIX 쪽은 `logo_path`에서 만들어진 타일 로고가 이미 패키지에 들어 있고(`Square44x44Logo` 외), 토스트용 에셋도 함께 실린다. **다만 MSIX로 설치해 실제 토스트를 본 적은 없다 — 미확인.**

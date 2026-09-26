@@ -29,4 +29,21 @@ class AppPaths {
     // the temp directory keeps the app working, minus session persistence.
     return p.join(Directory.systemTemp.path, 'Tide', 'WebView2');
   }
+
+  /// The app icon, unpacked to a real file for Windows toast notifications.
+  ///
+  /// 🔑 Windows takes the toast's icon from a **path on disk**, not from
+  /// anything the app can hand it in memory, and Flutter assets live inside
+  /// the bundle. So the icon has to be written out once before notifications
+  /// are initialised (`NotificationService`).
+  ///
+  /// Beside the WebView2 profile, under the same folder the uninstaller
+  /// removes — it is a derived file, not the user's.
+  static String get notificationIconFile {
+    final local = Platform.environment['LOCALAPPDATA'];
+    final root = local != null && local.isNotEmpty
+        ? p.join(local, 'Tide')
+        : p.join(Directory.systemTemp.path, 'Tide');
+    return p.join(root, 'notification-icon.png');
+  }
 }
