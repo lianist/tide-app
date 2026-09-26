@@ -17,13 +17,33 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.7.0"
 #define AppPublisher "Tide"
 #define AppExe "tide.exe"
 ; The executable was called ttabong.exe up to 1.3.0. Upgrades have to know the
 ; old name to stop it and clear it away.
 #define LegacyExe "ttabong.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
+
+; 🔑 The version is READ FROM THE BUILT EXE, never typed here.
+;
+; It used to be a literal, which meant one number lived in three places by
+; hand — here, pubspec's `version:`, and `msix_version`. Nothing checks that
+; they agree, so the failure mode is an installer that claims to be a version
+; it isn't, found weeks later by someone reading a log.
+;
+; Flutter stamps the exe from pubspec `version: 1.7.0+8` as the four-part
+; resource `1.7.0.8` — build number last. Store's four-part version is a
+; different thing entirely (its last part must be 0), so the two are never
+; treated with the same rule: this drops the build number to get `1.7.0`,
+; and the msix tool derives `1.7.0.0` from pubspec on its own.
+;
+; Paths here resolve against the compiler's working directory, not the
+; script's, so SourcePath has to be spelled out — unlike [Files] Source below.
+#define ExeVersion GetVersionNumbersString(AddBackslash(SourcePath) + BuildDir + "\" + AppExe)
+#if ExeVersion == ""
+  #error 빌드된 tide.exe가 없다. `flutter build windows --release`를 먼저 실행할 것.
+#endif
+#define AppVersion Copy(ExeVersion, 1, RPos(".", ExeVersion) - 1)
 
 [Setup]
 ; Never change AppId — it is what makes the next version replace this one

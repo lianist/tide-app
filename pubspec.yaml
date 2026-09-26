@@ -146,7 +146,10 @@ msix_config:
   publisher_display_name: Tide
   identity_name: Tide.TideAI
   publisher: CN=13D7E6E9-D1D3-496D-824D-D95DACA8E9E9
-  msix_version: 1.7.0.0
+  # 🔑 `msix_version`은 일부러 없다. 없으면 도구가 위의 `version:`에서
+  # `major.minor.patch.0`을 만든다 — Store가 요구하는 네 자리와, 마지막
+  # 자리가 반드시 0이어야 한다는 규칙까지 그대로 맞는다. 여기 적어 두면
+  # `version:`을 올릴 때 같이 올리는 걸 잊는 순간 조용히 어긋난다.
   # 🔑 Store 제출본을 만든다 — 서명하지 않고, 위의 `publisher`를 그대로
   # 매니페스트에 쓴다. 이 줄이 없으면 패키지가 동봉된 테스트 인증서로
   # 서명되면서 Publisher가 그 인증서의 주체(`CN=Msix Testing, …`)로
