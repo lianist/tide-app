@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.3+12
+version: 1.8.4+13
 
 environment:
   sdk: ^3.13.4
@@ -170,6 +170,10 @@ msix_config:
   # 사라진다.
   store: true
   logo_path: assets/app-icon/png/tide-app-icon-256.png
+  # 🔑 패키지가 지원한다고 선언하는 언어. 안 쓰면 도구가 `en-us`를 박는다.
+  # 앱 화면·알림·대시보드가 전부 한국어라 그게 사실과 달랐다. Store가 이
+  # 목록의 첫 번째를 기본 언어로 보여 준다.
+  languages: ko-kr
   capabilities: internetClient
   protocol_activation: dochi
   # 빌드가 대화형 프롬프트에서 멈추지 않게 한다. 로컬 검증은 개발자 모드의
