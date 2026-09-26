@@ -17,7 +17,7 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.6.0"
+#define AppVersion "1.7.0"
 #define AppPublisher "Tide"
 #define AppExe "tide.exe"
 ; The executable was called ttabong.exe up to 1.3.0. Upgrades have to know the
@@ -118,6 +118,23 @@ Type: filesandordirs; Name: "{app}"
 ; read-only install location (Program Files, or an MSIX package) can't break
 ; the dashboard. It has to be named here or uninstall leaves it behind.
 Type: filesandordirs; Name: "{localappdata}\Tide"
+; 🔴 The app's own login. Until 1.7.0 this survived an uninstall, so
+; "제거하고 다시 깔았다" did not reset anything — the reinstalled app read the
+; same token back and started signed in as whoever was signed in before. For
+; someone whose account had been deleted server-side that was a trap with no
+; exit: the app never showed its login screen, so it could not be pointed at
+; the new account, and captures kept going to an account that no longer
+; existed. The folder also holds tide.log, which carries the titles of the
+; tasks captures produced — leaving that behind after an uninstall is not
+; something to defend either.
+;
+; Only fires on a real uninstall. Inno does not run the old uninstaller when
+; installing over an existing version, so upgrades keep the user signed in.
+Type: filesandordirs; Name: "{userappdata}\Tide"
+; The same two files under the pre-1.4.0 identity. Named exactly, not by the
+; parent: `com.example` is Flutter's default organisation and another app
+; that never set one would be storing its data in that same folder.
+Type: filesandordirs; Name: "{userappdata}\com.example\ttabong"
 
 [Code]
 // 🔴 Tide cannot be closed the way installers normally close an app.

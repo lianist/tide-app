@@ -11,6 +11,8 @@ import '../services/app_paths.dart';
 import '../services/dashboard_navigation.dart';
 import '../services/dochi_config.dart';
 import '../services/web_session_service.dart';
+import '../services/webview2_runtime.dart';
+import 'webview2_missing_screen.dart';
 
 /// The dashboard webview — one widget for both desktops.
 ///
@@ -23,7 +25,9 @@ import '../services/web_session_service.dart';
 /// 🔑 On Windows the WebView2 is a *native child window*, not a texture, so
 /// nothing Flutter draws can appear over it. Anything the dashboard needs to
 /// show the user has to be part of the page, an OS notification, or the tray
-/// menu — not a widget layered on top.
+/// menu — not a widget layered on top. The one exception is when there is no
+/// webview at all: [WebView2MissingScreen] takes the whole window precisely
+/// because nothing has been created to cover it.
 ///
 /// 🔑 Pages are never opened by URL. Every destination goes through
 /// [WebSessionService], which trades the app's session for a one-time URL
@@ -39,9 +43,14 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   static const _tag = 'Dashboard';
 
-  late final WebViewController _controller;
+  /// Null while there is no WebView2 runtime to build one with — the only
+  /// reason this is nullable.
+  WebViewController? _controller;
   final _webSession = WebSessionService();
   StreamSubscription<String>? _navigationSubscription;
+
+  /// Set when the user pressed "다시 확인" and the runtime still wasn't there.
+  bool _recheckFailed = false;
 
   /// Guards the one retry after landing on the login page. Without it a
   /// bridge that keeps failing would reload forever, and each reload costs a
@@ -51,7 +60,21 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController.fromPlatformCreationParams(
+    _start();
+  }
+
+  /// Creates the webview and opens the dashboard in it.
+  ///
+  /// Does nothing when Windows has no WebView2 runtime — building the
+  /// controller then produces a blank white rectangle and no error anyone can
+  /// see, which is the exact failure this checks for.
+  void _start() {
+    if (!WebView2Runtime.isInstalled) {
+      AppLog.write(_tag, 'no WebView2 runtime — showing the install notice');
+      return;
+    }
+
+    final controller = WebViewController.fromPlatformCreationParams(
       // 🔑 Windows needs the browser profile placed deliberately. Left to
       // itself WebView2 creates it *beside the executable*, which is only
       // writable by luck: not under Program Files, and never inside an MSIX
@@ -72,8 +95,22 @@ class _DashboardViewState extends State<DashboardView> {
               AppLog.write(_tag, 'load error: ${error.description}'),
         ),
       );
+
+    _controller = controller;
     _open(dashboardPath);
-    _navigationSubscription = DashboardNavigation.onRequested.listen(_open);
+    _navigationSubscription ??= DashboardNavigation.onRequested.listen(_open);
+  }
+
+  /// "설치했습니다 · 다시 확인" — the runtime installs while the app is still
+  /// running, so the app has to be able to notice without being restarted.
+  void _recheck() {
+    if (!WebView2Runtime.isInstalled) {
+      AppLog.write(_tag, 'rechecked — WebView2 runtime still not found');
+      setState(() => _recheckFailed = true);
+      return;
+    }
+    AppLog.write(_tag, 'WebView2 runtime found on recheck — starting the webview');
+    setState(_start);
   }
 
   /// 🔑 On Windows, navigation is **not** policed, and deliberately so.
@@ -127,6 +164,9 @@ class _DashboardViewState extends State<DashboardView> {
   /// *destination* is logged instead, which is what anyone reading the log
   /// actually wants to know.
   Future<void> _open(String path) async {
+    final controller = _controller;
+    if (controller == null) return;
+
     AppLog.write(_tag, 'opening $path');
     if (path != loginPath) _retriedAfterLogin = false;
 
@@ -134,7 +174,7 @@ class _DashboardViewState extends State<DashboardView> {
     try {
       // No bridge available — open the path plainly and let the web login
       // screen stand in, exactly as api.md prescribes for a 500.
-      await _controller.loadRequest(signedIn ?? Uri.parse('$tideBaseUrl$path'));
+      await controller.loadRequest(signedIn ?? Uri.parse('$tideBaseUrl$path'));
     } catch (e) {
       AppLog.write(_tag, 'opening $path failed: $e');
     }
@@ -147,5 +187,14 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   @override
-  Widget build(BuildContext context) => WebViewWidget(controller: _controller);
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) {
+      return WebView2MissingScreen(
+        onRecheck: _recheck,
+        stillMissing: _recheckFailed,
+      );
+    }
+    return WebViewWidget(controller: controller);
+  }
 }
