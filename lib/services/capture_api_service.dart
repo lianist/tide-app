@@ -25,10 +25,15 @@ class CaptureUploadResult {
   /// reached the agent (a timeout or a server error carries no id).
   final String? jobLogId;
 
+  /// Why a [CaptureUploadStatus.failed] failed, for the log only. Null when
+  /// the failure came with a message meant for the user (see [rejected]).
+  final String? logDetail;
+
   const CaptureUploadResult(
     this.status, {
     this.notifications = const [],
     this.jobLogId,
+    this.logDetail,
   });
 
   /// No usable session — either never signed in, or the session was dropped
@@ -37,8 +42,24 @@ class CaptureUploadResult {
   factory CaptureUploadResult.notSignedIn() =>
       const CaptureUploadResult(CaptureUploadStatus.notSignedIn);
 
+  /// The server refused the request and said why, in Korean written for the
+  /// user (`public/api.md` §에러 코드 — `message`는 그대로 띄워도 되는 문구다).
+  /// Shown verbatim, because the message is the only part that says what to
+  /// do about it: `403 CONSENT_REQUIRED` asks the user to open the dashboard
+  /// and accept the privacy policy, and "보내지 못했습니다" would throw that
+  /// away.
+  ///
+  /// Deliberately not switched on `code` — new codes appear without notice,
+  /// and this path has to carry every one of them.
+  factory CaptureUploadResult.rejected(String message) =>
+      CaptureUploadResult(CaptureUploadStatus.failed, notifications: [message]);
+
+  /// Something broke on our side — no network, an unparseable body, an
+  /// exception. [detail] is for the log; it is technical text in whatever
+  /// language the runtime felt like, so it never becomes a notification and
+  /// the caller falls back to its own wording.
   factory CaptureUploadResult.failed(String detail) =>
-      CaptureUploadResult(CaptureUploadStatus.failed, notifications: [detail]);
+      CaptureUploadResult(CaptureUploadStatus.failed, logDetail: detail);
 
   factory CaptureUploadResult.success(List<String> notifications, {String? jobLogId}) =>
       CaptureUploadResult(
@@ -96,7 +117,9 @@ class CaptureApiService {
       }
       AppLog.write(_tag, 'failed body: $body');
       final message = (body['error'] as Map<String, dynamic>?)?['message'] as String?;
-      return CaptureUploadResult.failed(message ?? 'Server returned ${response.statusCode}');
+      return message != null
+          ? CaptureUploadResult.rejected(message)
+          : CaptureUploadResult.failed('Server returned ${response.statusCode}');
     } catch (e) {
       AppLog.write(_tag, 'upload failed: $e');
       return CaptureUploadResult.failed(e.toString());

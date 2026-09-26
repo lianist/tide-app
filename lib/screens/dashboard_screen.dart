@@ -11,9 +11,14 @@ import 'dashboard_view.dart';
 class DashboardScreen extends StatelessWidget {
   final bool isHotkeyActive;
 
+  /// Passed straight through to [DashboardView] — the user signed out inside
+  /// the dashboard web page, and the app has to drop its own session too.
+  final VoidCallback onSignedOut;
+
   const DashboardScreen({
     super.key,
     required this.isHotkeyActive,
+    required this.onSignedOut,
   });
 
   @override
@@ -23,7 +28,7 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           children: [
             if (!isHotkeyActive) _buildPermissionBanner(),
-            const Expanded(child: DashboardView()),
+            Expanded(child: DashboardView(onSignedOut: onSignedOut)),
           ],
         ),
       ),

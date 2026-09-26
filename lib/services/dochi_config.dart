@@ -30,3 +30,13 @@ String historyPath(String jobLogId) => '/history?log=$jobLogId';
 /// Where the webview lands when its own session has expired. Seeing this is
 /// the app's cue to ask for a fresh one-time URL.
 const String loginPath = '/login';
+
+/// Marks [loginPath] as the end of a **deliberate** sign-out — the user
+/// pressed 로그아웃 in the dashboard, or deleted their account. An expired web
+/// session lands on the same path without it (`?next=…`/`?error=…` may be
+/// there; this never is).
+///
+/// 🔑 The difference decides whether the app re-bridges or signs itself out,
+/// and getting it backwards is worse than doing nothing: bridging here logs
+/// the webview straight back into the account the user just left.
+const String signedOutParam = 'signedOut';

@@ -34,7 +34,11 @@ import 'webview2_missing_screen.dart';
 /// that arrives already signed in. Opening a path directly works, but drops
 /// the user on a web login screen they should never have to see.
 class DashboardView extends StatefulWidget {
-  const DashboardView({super.key});
+  /// The user signed out (or deleted their account) inside the dashboard.
+  /// Only the web session ends there; dropping the app's own is the app's job.
+  final VoidCallback onSignedOut;
+
+  const DashboardView({super.key, required this.onSignedOut});
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
@@ -145,12 +149,36 @@ class _DashboardViewState extends State<DashboardView> {
   void _handlePageFinished(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
-    AppLog.write(_tag, 'loaded ${uri.host}${uri.path}');
 
-    // Landing here means the webview's own cookies have expired — the app's
+    final signedOut = uri.queryParameters.containsKey(signedOutParam);
+    // 🔑 Host and path only — never the query. One of the URLs that arrives
+    // here is the one-time sign-in address from the bridge, and its query is
+    // a credential (`public/api.md` — 주소를 로그에 남기지 않는다). The one
+    // marker worth having is added by name, not by copying what was there.
+    AppLog.write(
+      _tag,
+      'loaded ${uri.host}${uri.path}${signedOut ? ' (signed out)' : ''}',
+    );
+
+    if (uri.host != tideHost || uri.path != loginPath) return;
+
+    // The user pressed 로그아웃 in the dashboard, or deleted their account.
+    //
+    // 🔴 Bridging here would be the opposite of what they asked for: the
+    // one-time URL signs the webview straight back into the account they
+    // just left, and the capture shortcuts keep posting to it because the
+    // app's own token never moved. The visible button has to end both
+    // sessions, so this is where the app ends its own.
+    if (signedOut) {
+      AppLog.write(_tag, 'signed out on the web — dropping the app session too');
+      widget.onSignedOut();
+      return;
+    }
+
+    // No marker: the webview's own cookies merely expired, and the app's
     // session may still be perfectly good. Trade it for a fresh one-time URL
     // rather than making the user sign in a second time.
-    if (uri.host == tideHost && uri.path == loginPath && !_retriedAfterLogin) {
+    if (!_retriedAfterLogin) {
       _retriedAfterLogin = true;
       AppLog.write(_tag, 'webview session expired — re-bridging');
       _open(dashboardPath);

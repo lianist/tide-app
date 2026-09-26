@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.7.0+8
+version: 1.8.0+9
 
 environment:
   sdk: ^3.13.4
@@ -90,7 +90,7 @@ flutter:
   uses-material-design: true
 
   # Tide wordmark, copied from `tide-kit-v3.0/assets/brand/` in the dochi
-  # repo ??the same asset `TideLogo` renders on the web dashboard.
+  # repo — the same asset `TideLogo` renders on the web dashboard.
   assets:
     # 로고 마크 + "Tide" 글자가 한 줄로 들어 있다. 로그인 화면은 이것만 쓴다
     # — 워드마크와 "Tide" 제목을 따로 두면 같은 단어가 두 번 나온다.
@@ -137,7 +137,10 @@ flutter:
 # `UrlSchemeService`의 런타임 레지스트리 쓰기가 가상화돼 시스템에 등록되지
 # 않으므로, 매니페스트에 선언하는 이 줄이 유일한 경로다.
 msix_config:
-  display_name: Tide
+  # 🔴 Partner Center에 **예약한 이름과 글자까지 같아야** 한다. 다르면 업로드
+  # 단계에서 거절된다. 앱 이름은 `Tide`가 아니라 `Tide AI`다 — 예약 이름에서
+  # 파생된 `identity_name: Tide.TideAI`가 그것을 말해 준다.
+  display_name: Tide AI
   # 🔴 아래 세 줄은 Partner Center가 이름 예약 때 발급한 실제 값이다
   # (Product management → Product identity). Store가 업로드된 패키지를
   # 받아 주는 조건이 이 값들과의 글자 단위 일치이고, **한 번 게시한 뒤에는
@@ -169,3 +172,6 @@ msix_config:
   # 여기 떨어뜨리면 14MB짜리 msix가 Inno 설치 프로그램 안에 같이 실린다
   # (실제로 한 번 23.6MB가 나왔다).
   output_path: .dist-scratch/msix
+  # 🔑 산출물 이름을 고정한다. 안 쓰면 파일 이름이 `display_name`을 따라가서,
+  # Store 이름이 바뀔 때마다 릴리스 절차의 파일 경로가 같이 바뀐다.
+  output_name: Tide

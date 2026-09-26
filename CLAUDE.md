@@ -64,14 +64,24 @@ flutter test
 - 🔑 **Windows 웹뷰는 `webview_win_floating`이다**(`webview_flutter`의 Windows 구현으로 등록되므로 양 플랫폼이 같은 `WebViewController`를 쓴다). **`webview_windows`로 돌아가지 않는다** — 그 텍스처 방식은 Windows 11 + 현행 WebView2에서 빈 흰 화면만 나온다. 대신 Windows에선 웹뷰 위에 Flutter 위젯을 그릴 수 없다(네이티브 자식 창).
 - 🔑 **웹뷰 안 내비게이션을 Windows에서 가로막지 않는다.** Google 로그인은 그때그때 다른 호스트를 거쳐서, 호스트 허용 목록은 반드시 로그인을 깨뜨린다. macOS만 off-host를 외부 브라우저로 넘긴다(WKWebView는 Google이 거부한다).
 - 🔑 **Windows 캡처는 `screen_capturer.capture()`를 쓰지 않는다.** 그쪽은 캡처 도구가 떴는지를 포그라운드 프로세스 이름으로 1초 뒤부터 판정해서, 사용자가 드래그하기도 전에 빈 클립보드를 읽고 끝난다. `ScreenshotService`가 직접 `ms-screenclip://`을 띄우고 클립보드를 폴링한다.
-- 🔑 **앱 신원은 전부 `Tide`다** — 실행 파일 `tide.exe`, Dart 패키지 `tide`, 번들 ID `com.tide.app`, MSIX `Tide.TideDesktop`. 단 **`dochi://` 스킴과 `dochi-six.vercel.app`은 바꾸지 않는다** — 상대 제품(코어)의 계약이고, api.md가 redirect_uri를 "글자까지 정확히" 요구한다.
+- 🔑 **앱 신원은 전부 `Tide`다** — 실행 파일 `tide.exe`, Dart 패키지 `tide`, 번들 ID `com.tide.app`. **Store만 예외로 `Tide AI`**(예약 이름, MSIX `Tide.TideAI`). 단 **`dochi://` 스킴과 `dochi-six.vercel.app`은 바꾸지 않는다** — 상대 제품(코어)의 계약이고, api.md가 redirect_uri를 "글자까지 정확히" 요구한다.
 - 🔑 **WebView2 프로필은 `AppPaths.webViewDataFolder`(LOCALAPPDATA)에 둔다.** 기본값은 실행 파일 *옆*이라 읽기 전용 설치 위치(Program Files·MSIX)에서 쓰기가 실패하고, 증상은 대시보드가 **빈 흰 화면**으로 나온다.
 - 🔑 **빌드 폴더에 아무것도 두지 않는다.** 설치 스크립트가 `Release\*`를 통째로 담아서, 거기 떨어진 것은 전부 배포본에 실린다(웹뷰 프로필 한 번, `tide.msix` 한 번 — 둘 다 크기가 두 배로 튀어서 잡았다). **깨끗한 설치 프로그램은 10MB대다.**
 - 🔑 **웹뷰에 주입하지 않는다 — 지금은 하나도 없다.** 대시보드는 코어의 웹페이지라 소스를 못 고치지만, 덧칠은 저쪽이 바뀌면 조용히 깨진다(실제로 한 번 깨져 엉뚱한 열을 덮어썼다). 급해 보여도 먼저 **`docs/20-Core-Requests.md`에 적어 넘긴다** — 2026-09-26에 넘긴 넷이 전부 웹으로 갔고 주입 코드는 통째로 지웠다. 레이아웃(CSS)은 아예 손대지 않는다.
+- 🔑 **`/login?signedOut=1`은 "사용자가 로그아웃했다"는 신호다.** 여기서는 `web-session`을 부르지 않는다 — 부르면 방금 나온 계정으로 웹뷰를 도로 로그인시킨다. 앱 토큰을 지우고 로그인 화면으로 간다. 표시 없는 `/login`은 세션 만료이고, 그때만 다시 잇는다.
+- 🔑 **서버가 거절 이유를 말하면 그대로 띄운다.** `message`는 사용자에게 보여도 되는 한국어다(`403 CONSENT_REQUIRED`처럼 무엇을 해야 하는지가 거기에만 있다). 우리 문구로 덮어쓰지 않는다. 반대로 우리 쪽에서 깨진 것(예외·네트워크)은 로그에만 남긴다. `failure.code`로 분기하지 않는 규칙은 그대로다.
 - 🔑 **웹뷰는 URL로 페이지를 열지 않는다.** `POST /api/v1/web-session`으로 일회용 로그인 주소를 받아 연다(`WebSessionService`). 경로를 직접 열면 웹 로그인 화면이 한 번 더 뜨고, macOS에서는 그 화면의 Google 로그인이 **끝나지 않는다**. 그 주소는 자격 증명이므로 **로그에 남기지 않는다** — 목적지 경로만 남긴다.
 - 🔑 **GUI 빌드에는 콘솔이 없다 — `debugPrint`는 어디에도 남지 않는다.** 실행 중 동작을 남기려면 `AppLog.write`를 쓴다(`%APPDATA%\Tide\Tide\tide.log` — 첫 줄이 실행 중인 버전을 말한다).
 - 🔑 **로그는 사적인 파일이 아니다.** 버그 리포트에 첨부돼 돌아다니고 **태스크 제목이 들어 있다.** 자격 증명(인증 코드, 일회용 로그인 주소)은 남기지 않는다. 1MB에서 잘리므로 오래된 줄은 사라진다고 가정한다.
 - 🔑 **앱 로그인은 `%APPDATA%\Tide`에 있고, 제거할 때 같이 지운다.** 남겨 두면 "제거하고 다시 깔았다"가 아무것도 초기화하지 않는다 — 삭제된 계정의 토큰을 그대로 다시 읽어 들여서, 앱이 로그인 화면을 영영 안 띄운다(1.7.0 이전 실제 증상). 업그레이드는 `[UninstallDelete]`를 타지 않으므로 로그인이 유지된다.
 - 🔑 **WebView2 런타임 부재는 확인하고 안내한다**(`WebView2Runtime`). 없으면 대시보드가 설명 없는 흰 화면이 된다. **탐지는 실패하는 쪽이 "있다"** — 거짓 음성이면 멀쩡한 사람 앞에 설치 벽을 세운다. 버전 폴더 말고 `msedgewebview2.exe`를 찾는다(`SetupMetrics`가 제거 후에도 남는다).
 - `pubspec.lock`은 앱이지만 현재 gitignore에 있다. 배포를 시작할 때 커밋 대상으로 전환할지 결정한다.
+- 🔑 **릴리스는 `pubspec`의 `version:` 한 줄만 고친다.** 설치 프로그램은 빌드된 exe의 버전 리소스에서, MSIX는 `version:`에서 각자 파생한다. **MSIX는 매 릴리스마다 같이 만든다**(Store 배포가 상시다).
+  ```
+  flutter build windows --release
+  "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" windows\packaging\tide.iss   # .dist-scratch\windows\Tide-Setup-<ver>.exe
+  dart run msix:create                                                        # .dist-scratch\msix\Tide.msix
+  ```
+- 🔴 **MSIX의 `display_name`·`identity_name`·`publisher`는 Partner Center 예약 값이다.** 글자 하나만 달라도 업로드가 거절되고, 게시 뒤에 바꾸면 다른 앱이 된다. 손대지 않는다.
+- 🔴 **PowerShell로 파일을 고쳐 쓰지 않는다.** 이 머신은 5.1이라 `Get-Content`가 ANSI로 읽어서, 왕복하면 한글이 전부 깨진다(실제로 `pubspec.yaml`을 날려 복구했다). 편집은 Edit 도구나 bash의 `sed`/`python`으로 한다.
 - 커밋 메시지는 한국어, Conventional Commits 접두사(`feat:`, `fix:`, `chore:`, `docs:`).

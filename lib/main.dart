@@ -162,8 +162,14 @@ class _AppRootState extends State<AppRoot> with WindowListener {
       CaptureUploadStatus.success => result.upload.notifications,
       CaptureUploadStatus.notSignedIn =>
         ['${result.mode.displayName} 캡처를 했지만, 먼저 로그인해야 합니다.'],
-      CaptureUploadStatus.failed =>
-        ['${result.mode.displayName} 캡처를 보내지 못했습니다.'],
+      // The server's own words when it gave any — it is the only part that
+      // says what to do next (`403 CONSENT_REQUIRED` asks the user to open
+      // the dashboard and accept the privacy policy). Our own wording is for
+      // failures that never reached the server, whose detail is technical
+      // and belongs in the log rather than on screen.
+      CaptureUploadStatus.failed => result.upload.notifications.isNotEmpty
+          ? result.upload.notifications
+          : ['${result.mode.displayName} 캡처를 보내지 못했습니다.'],
     };
     // OS notifications, not an in-window SnackBar — the window may be closed
     // (the app keeps running for the global shortcuts). One push per message
@@ -190,11 +196,26 @@ class _AppRootState extends State<AppRoot> with WindowListener {
     setState(() => _isLoggedIn = true);
   }
 
+  /// The user signed out (or deleted their account) inside the dashboard.
+  ///
+  /// The web page can only end its own session — the app's token lives in
+  /// secure storage and nothing on that page can reach it. Until this
+  /// existed, pressing 로그아웃 left the capture shortcuts still uploading to
+  /// the account the user believed they had just left.
+  Future<void> _handleWebSignOut() async {
+    await AuthService().signOut();
+    AppLog.write('App', 'signed out (web) — app session dropped');
+    if (mounted) setState(() => _isLoggedIn = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isLoggedIn) {
       return LoginScreen(hotkeys: _hotkeys, onLoginSuccess: _handleLoginSuccess);
     }
-    return DashboardScreen(isHotkeyActive: _isHotkeyActive);
+    return DashboardScreen(
+      isHotkeyActive: _isHotkeyActive,
+      onSignedOut: _handleWebSignOut,
+    );
   }
 }

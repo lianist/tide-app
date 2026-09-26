@@ -83,7 +83,12 @@ class ScreenshotService {
       capturedAt: capturedAt,
       timezone: await StorageService.localIanaTimeZone(),
     );
-    AppLog.write(_tag, 'upload ${upload.status.name}: ${upload.notifications}');
+    // `logDetail` is set only for failures that carried no message for the
+    // user, so exactly one of the two is ever non-empty.
+    AppLog.write(
+      _tag,
+      'upload ${upload.status.name}: ${upload.logDetail ?? upload.notifications}',
+    );
 
     try {
       await file.delete();
