@@ -17,7 +17,7 @@
 ;      the install is already per-user in every way that matters.
 
 #define AppName "Tide"
-#define AppVersion "1.5.0"
+#define AppVersion "1.6.0"
 #define AppPublisher "Tide"
 #define AppExe "tide.exe"
 ; The executable was called ttabong.exe up to 1.3.0. Upgrades have to know the

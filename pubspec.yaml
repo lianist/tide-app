@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.5.0+6
+version: 1.6.0+7
 
 environment:
   sdk: ^3.13.4
@@ -144,7 +144,7 @@ msix_config:
   # 바꿔야 한다. 한 번 게시한 뒤에는 바꿀 수 없다 — 바꾸면 다른 앱이 되고
   # 기존 사용자가 업데이트를 못 받는다(Inno의 `AppId`와 같은 원리).
   identity_name: Tide.TideDesktop
-  msix_version: 1.5.0.0
+  msix_version: 1.6.0.0
   logo_path: assets/app-icon/png/tide-app-icon-256.png
   capabilities: internetClient
   protocol_activation: dochi

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,12 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_win_floating/webview_plugin.dart';
 
-import '../models/capture_mode.dart';
-import '../models/hotkey_config.dart';
 import '../services/app_log.dart';
 import '../services/app_paths.dart';
 import '../services/dashboard_navigation.dart';
 import '../services/dochi_config.dart';
+import '../services/web_session_service.dart';
 
 /// The dashboard webview — one widget for both desktops.
 ///
@@ -26,6 +24,11 @@ import '../services/dochi_config.dart';
 /// nothing Flutter draws can appear over it. Anything the dashboard needs to
 /// show the user has to be part of the page, an OS notification, or the tray
 /// menu — not a widget layered on top.
+///
+/// 🔑 Pages are never opened by URL. Every destination goes through
+/// [WebSessionService], which trades the app's session for a one-time URL
+/// that arrives already signed in. Opening a path directly works, but drops
+/// the user on a web login screen they should never have to see.
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
 
@@ -37,7 +40,13 @@ class _DashboardViewState extends State<DashboardView> {
   static const _tag = 'Dashboard';
 
   late final WebViewController _controller;
-  StreamSubscription<Uri>? _navigationSubscription;
+  final _webSession = WebSessionService();
+  StreamSubscription<String>? _navigationSubscription;
+
+  /// Guards the one retry after landing on the login page. Without it a
+  /// bridge that keeps failing would reload forever, and each reload costs a
+  /// one-time URL.
+  bool _retriedAfterLogin = false;
 
   @override
   void initState() {
@@ -62,23 +71,19 @@ class _DashboardViewState extends State<DashboardView> {
           onWebResourceError: (error) =>
               AppLog.write(_tag, 'load error: ${error.description}'),
         ),
-      )
-      ..loadRequest(dashboardUri);
-    _navigationSubscription = DashboardNavigation.onRequested.listen(_goTo);
+      );
+    _open(dashboardPath);
+    _navigationSubscription = DashboardNavigation.onRequested.listen(_open);
   }
 
   /// 🔑 On Windows, navigation is **not** policed, and deliberately so.
   ///
-  /// It used to be: anything off dochi's host was stopped and handed to the
-  /// system browser. Sign-in is exactly the flow that breaks under that rule.
-  /// `dochi → supabase → accounts.google.com → …` is a chain of redirects that
-  /// passes through whatever host Google feels like using that day (device
-  /// verification, a consent screen, a captcha), and the first one nobody had
-  /// listed got torn out of the webview mid-flow and reopened in a browser
-  /// holding none of the cookies or OAuth state the flow depends on. That
-  /// browser then sits there waiting forever, and the app window bounces back
-  /// to the dashboard — which is exactly what "Google 로그인이 앱을 거치면 안
-  /// 된다" looked like.
+  /// It used to be: anything off the service's host was stopped and handed to
+  /// the system browser. Sign-in is exactly the flow that breaks under that
+  /// rule — a chain of redirects passes through whatever host the identity
+  /// provider feels like using that day, and the first one nobody had listed
+  /// got torn out of the webview mid-flow and reopened in a browser holding
+  /// none of the cookies the flow depends on.
   ///
   /// WebView2 *is* Edge and presents as Edge, so there is no reason to move
   /// the flow elsewhere — and a sign-in finished elsewhere leaves its cookies
@@ -86,12 +91,14 @@ class _DashboardViewState extends State<DashboardView> {
   ///
   /// macOS is the opposite case and keeps the old rule: WKWebView is
   /// recognisably an embedded webview and Google refuses to authenticate in
-  /// one at all, so off-host navigation has to leave.
+  /// one at all, so off-host navigation has to leave. (Since the web-session
+  /// bridge landed, the webview should never start a sign-in at all — this is
+  /// the belt to that braces.)
   FutureOr<NavigationDecision> _handleNavigation(NavigationRequest request) {
     if (Platform.isWindows) return NavigationDecision.navigate;
 
     final uri = Uri.tryParse(request.url);
-    if (uri != null && uri.host != dashboardUri.host) {
+    if (uri != null && uri.host != tideHost) {
       launchUrl(uri, mode: LaunchMode.externalApplication);
       return NavigationDecision.prevent;
     }
@@ -102,200 +109,36 @@ class _DashboardViewState extends State<DashboardView> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     AppLog.write(_tag, 'loaded ${uri.host}${uri.path}');
-    // Only dochi's own pages — never Google's sign-in, never anywhere else
-    // the webview travels.
-    if (uri.host != dashboardUri.host) return;
-    // The result is logged rather than dropped: "is the build I am running
-    // actually the one with the login-screen fixes in it?" is otherwise only
-    // answerable by squinting at the page, and that question has already
-    // cost one release's worth of confusion.
-    _controller.runJavaScriptReturningResult(_authPagePolishScript).then(
-      (result) => AppLog.write(_tag, 'page polish: $result'),
-      onError: (Object e) => AppLog.write(_tag, 'page polish failed: $e'),
-    );
+
+    // Landing here means the webview's own cookies have expired — the app's
+    // session may still be perfectly good. Trade it for a fresh one-time URL
+    // rather than making the user sign in a second time.
+    if (uri.host == tideHost && uri.path == loginPath && !_retriedAfterLogin) {
+      _retriedAfterLogin = true;
+      AppLog.write(_tag, 'webview session expired — re-bridging');
+      _open(dashboardPath);
+    }
   }
 
-  /// Always a fresh `loadRequest`, never `reload()`: the caller is telling us
-  /// which page should be on screen, and the user may have wandered off it —
-  /// reloading whatever they wandered onto is not what was asked for.
-  Future<void> _goTo(Uri uri) async {
-    // Logged before the load, not after: dochi bounces a signed-out webview
-    // to /login, so `onPageFinished` alone can't tell you where the app
-    // *meant* to go — every destination looks like the login page.
-    AppLog.write(_tag, 'navigating to $uri');
+  /// Opens a service path, signed in.
+  ///
+  /// The one-time URL is loaded but never logged: it carries a token that
+  /// signs its holder in (`public/api.md` — 주소를 로그에 남기지 않는다). The
+  /// *destination* is logged instead, which is what anyone reading the log
+  /// actually wants to know.
+  Future<void> _open(String path) async {
+    AppLog.write(_tag, 'opening $path');
+    if (path != loginPath) _retriedAfterLogin = false;
+
+    final signedIn = await _webSession.signedInUrl(next: path);
     try {
-      await _controller.loadRequest(uri);
+      // No bridge available — open the path plainly and let the web login
+      // screen stand in, exactly as api.md prescribes for a 500.
+      await _controller.loadRequest(signedIn ?? Uri.parse('$tideBaseUrl$path'));
     } catch (e) {
-      AppLog.write(_tag, 'navigation to ${uri.path} failed: $e');
+      AppLog.write(_tag, 'opening $path failed: $e');
     }
   }
-
-  /// 🔑 dochi's dashboard lists both platforms' shortcuts side by side, and
-  /// spells the Windows one `Ctrl+⇧1` while this app spells it
-  /// `Ctrl+Shift+1`. Same chord, two spellings, one window — so the Windows
-  /// column is rewritten to match the app.
-  ///
-  /// **Only the Windows spelling.** An earlier version of this replaced the
-  /// macOS glyphs (`⇧⌘1`) instead, from back when the dashboard printed one
-  /// shortcut and assumed a Mac. The page changed underneath it and the patch
-  /// started corrupting the *macOS* column — which is the standing warning
-  /// about editing someone else's page: keep the match as narrow as possible,
-  /// and make a miss a no-op rather than damage.
-  ///
-  /// Empty on macOS, where nothing needs saying.
-  ///
-  /// The real fix belongs in dochi — worth raising the next time we send
-  /// them anything.
-  static Map<String, String> get _shortcutHintFixes {
-    if (!Platform.isWindows) return const {};
-    final configs = HotkeyConfig.defaultConfigs();
-    String displayFor(AppCaptureMode action) =>
-        configs.firstWhere((config) => config.action == action).shortcutDisplay;
-    return {
-      'Ctrl+⇧1': displayFor(AppCaptureMode.createTask),
-      'Ctrl+⇧2': displayFor(AppCaptureMode.completeTask),
-    };
-  }
-
-  /// The injected script: the hint table, then the body verbatim. The body
-  /// stays a *raw* string — it contains a regex (`/^\/(login|…)/`) whose
-  /// backslash Dart would otherwise eat, silently changing what it matches.
-  static String get _authPagePolishScript =>
-      'window.TIDE_HINTS = ${jsonEncode(_shortcutHintFixes)};\n$_polishBody';
-
-  /// Two fixes to dochi's own auth pages, applied in the app's webview only.
-  ///
-  /// Neither is a change to the website — this repo can't touch dochi's
-  /// source, and both problems are specific to being hosted in a webview:
-  ///
-  /// 1. **A password reveal that works.** WebView2 draws Edge's native reveal
-  ///    button (`::-ms-reveal`) inside every password field but never wires it
-  ///    up — it is browser-shell UI, so clicking the eye does nothing at all.
-  ///    WKWebView draws no reveal at all. Either way the field is unreadable,
-  ///    so the native one is hidden and replaced.
-  /// 2. **No "← 대시보드로" link.** In the app the webview *starts* at the
-  ///    dashboard and is sent here by dochi because there is no session yet,
-  ///    so the link only bounces back to this same page.
-  ///
-  /// Runs after the page has loaded, so after React has hydrated. Nothing is
-  /// moved or removed from the DOM — the button is appended and the link is
-  /// merely hidden — because re-parenting or deleting a node React is still
-  /// tracking makes it throw and blank the whole page.
-  static const String _polishBody = r'''
-(() => {
-  if (window.__tidePolish) return 'already applied';
-  window.__tidePolish = true;
-
-
-  var BRAND = '#444892';
-  var MUTED = '#9ca3af';
-  var EYE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"' +
-    ' stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
-    ' stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8' +
-    '-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-
-  var style = document.createElement('style');
-  style.textContent = 'input::-ms-reveal{display:none!important;}';
-  document.head.appendChild(style);
-
-  function decorate(input) {
-    if (input.dataset.tideReveal) return;
-    var host = input.parentElement;
-    if (!host) return;
-    input.dataset.tideReveal = '1';
-    host.style.position = 'relative';
-    input.style.paddingRight = '2.5rem';
-
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.tabIndex = -1;
-    button.setAttribute('aria-label', '누르고 있는 동안 비밀번호 보기');
-    button.innerHTML = EYE;
-    button.style.cssText = 'position:absolute;right:0.6rem;display:flex;' +
-      'align-items:center;justify-content:center;width:1.5rem;height:1.5rem;' +
-      'border:0;background:none;padding:0;color:' + MUTED + ';cursor:pointer;';
-
-    // Measured off the input itself rather than pinned to the label's bottom
-    // edge: the label also holds its caption text, so "bottom" is nowhere
-    // near the middle of the field, and the button drifted as fonts loaded.
-    function place() {
-      button.style.top = (input.offsetTop + input.offsetHeight / 2) + 'px';
-      button.style.transform = 'translateY(-50%)';
-    }
-
-    // Held, not toggled: the password is visible exactly as long as the
-    // button is down, and hiding it again is releasing the mouse rather than
-    // remembering to click a second time.
-    function show(event) {
-      // Keeps the caret where the user left it — without this the mousedown
-      // pulls focus out of the field.
-      if (event) event.preventDefault();
-      input.type = 'text';
-      button.style.color = BRAND;
-    }
-    function hide() {
-      input.type = 'password';
-      button.style.color = MUTED;
-    }
-
-    button.addEventListener('pointerdown', show);
-    button.addEventListener('pointerup', hide);
-    button.addEventListener('pointercancel', hide);
-    button.addEventListener('pointerleave', hide);
-    // The release can land anywhere if the pointer wandered off the button.
-    window.addEventListener('pointerup', hide);
-    window.addEventListener('blur', hide);
-
-    host.appendChild(button);
-    place();
-    if (window.ResizeObserver) new ResizeObserver(place).observe(input);
-  }
-
-  // The hints live in ordinary text nodes, so they are found by walking text
-  // rather than by guessing at dochi's markup. Nodes are collected first and
-  // edited after: mutating during a TreeWalker walk skips siblings.
-  function fixHints() {
-    var keys = Object.keys(window.TIDE_HINTS || {});
-    if (!keys.length) return 0;
-    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    var hits = [], node;
-    while ((node = walker.nextNode())) {
-      for (var i = 0; i < keys.length; i++) {
-        if (node.nodeValue.indexOf(keys[i]) !== -1) { hits.push(node); break; }
-      }
-    }
-    for (var j = 0; j < hits.length; j++) {
-      var text = hits[j].nodeValue;
-      for (var k = 0; k < keys.length; k++) {
-        text = text.split(keys[k]).join(window.TIDE_HINTS[keys[k]]);
-      }
-      hits[j].nodeValue = text;
-    }
-    return hits.length;
-  }
-
-  function apply() {
-    var reveals = 0, hidden = 0;
-    var inputs = document.querySelectorAll('input[type=password]');
-    for (var i = 0; i < inputs.length; i++) { decorate(inputs[i]); reveals++; }
-
-    if (/^\/(login|signup|reset-password)/.test(location.pathname)) {
-      var links = document.querySelectorAll('a[href^="/dashboard"]');
-      for (var j = 0; j < links.length; j++) {
-        links[j].style.display = 'none';
-        hidden++;
-      }
-    }
-    return 'reveals=' + reveals + ' hidden-links=' + hidden +
-      ' shortcut-hints=' + fixHints();
-  }
-
-  var first = apply();
-  new MutationObserver(apply)
-    .observe(document.body, {childList: true, subtree: true});
-  return first;
-})();
-''';
 
   @override
   void dispose() {

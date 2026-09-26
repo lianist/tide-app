@@ -51,7 +51,7 @@ void main() async {
 /// part of the app the user can see — it keeps running with its window closed
 /// so the global shortcuts stay registered.
 Future<void> _openCaptureInHistory(String jobLogId) async {
-  DashboardNavigation.goTo(historyUri(jobLogId));
+  DashboardNavigation.goTo(historyPath(jobLogId));
   await windowManager.show();
   await windowManager.focus();
 }

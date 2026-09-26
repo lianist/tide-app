@@ -70,7 +70,7 @@ class AuthService {
   /// message to show the user.
   Future<String?> signIn() async {
     final state = _randomState();
-    final startUri = Uri.parse('$dochiBaseUrl/auth/app/start').replace(
+    final startUri = Uri.parse('$tideBaseUrl/auth/app/start').replace(
       queryParameters: {'redirect_uri': _redirectUri, 'state': state},
     );
 
@@ -96,7 +96,7 @@ class AuthService {
       return '로그인 요청이 일치하지 않습니다. 다시 시도해 주세요.';
     }
 
-    log('callback matched, query=${callback.queryParameters}, fragment="${callback.fragment}"');
+    log('callback matched, state ok, code present — exchanging');
     final code = callback.queryParameters['code'];
     if (code == null) {
       return '로그인에 실패했습니다. 다시 시도해 주세요.';
@@ -110,7 +110,17 @@ class AuthService {
   /// the full five minutes with nothing shown. Logging every link makes that
   /// case visible instead.
   static Uri _logIncomingLink(Uri uri) {
-    log('deep link received: $uri (matches=${_isAuthCallback(uri)})');
+    // 🔑 The `code` is redacted. It is a single-use credential, and a log
+    // file gets pasted into chats and bug reports — the one place a
+    // credential should never travel. Everything that makes the log useful
+    // (did a link arrive, did it match, did the state come back) survives.
+    final redacted = uri.queryParameters.containsKey('code')
+        ? uri.replace(queryParameters: {
+            ...uri.queryParameters,
+            'code': '<redacted>',
+          })
+        : uri;
+    log('deep link received: $redacted (matches=${_isAuthCallback(uri)})');
     return uri;
   }
 
@@ -167,7 +177,7 @@ class AuthService {
   Future<String?> _exchangeToken(Map<String, String> body) async {
     try {
       final response = await http.post(
-        Uri.parse('$dochiBaseUrl/auth/app/token'),
+        Uri.parse('$tideBaseUrl/auth/app/token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );

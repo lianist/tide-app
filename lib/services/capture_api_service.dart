@@ -21,7 +21,7 @@ class CaptureUploadResult {
 
   /// The agent run this capture produced, if the server got far enough to
   /// record one. It identifies the entry a notification click should open in
-  /// the history page — see [historyUri]. Null for a request that never
+  /// the history page — see [historyPath]. Null for a request that never
   /// reached the agent (a timeout or a server error carries no id).
   final String? jobLogId;
 
@@ -156,7 +156,7 @@ class CaptureApiService {
   }) async {
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$dochiBaseUrl/api/v1/captures'),
+      Uri.parse('$tideBaseUrl/api/v1/captures'),
     );
     request.headers['Authorization'] = 'Bearer $token';
     request.fields['mode'] = mode.apiValue;
