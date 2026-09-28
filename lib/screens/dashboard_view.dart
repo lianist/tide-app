@@ -8,6 +8,7 @@ import 'package:webview_win_floating/webview_plugin.dart';
 
 import '../services/app_log.dart';
 import '../services/app_paths.dart';
+import '../services/auth_service.dart';
 import '../services/dashboard_navigation.dart';
 import '../services/dochi_config.dart';
 import '../services/web_session_service.dart';
@@ -59,7 +60,16 @@ class _DashboardViewState extends State<DashboardView> {
   /// Guards the one retry after landing on the login page. Without it a
   /// bridge that keeps failing would reload forever, and each reload costs a
   /// one-time URL.
+  ///
+  /// Cleared only once the webview actually lands somewhere other than the
+  /// login page — clearing it when the retry *starts* (as it once did) reset
+  /// the guard on every attempt and made it guard nothing.
   bool _retriedAfterLogin = false;
+
+  /// Whether the last arrival handled was the login page. Both
+  /// `onPageFinished` and `onUrlChange` report the same full page load, so
+  /// this is what keeps one arrival from being acted on twice.
+  bool _onLoginPage = false;
 
   @override
   void initState() {
@@ -95,6 +105,16 @@ class _DashboardViewState extends State<DashboardView> {
         NavigationDelegate(
           onNavigationRequest: _handleNavigation,
           onPageFinished: _handlePageFinished,
+          // 🔑 The dashboard is a Next.js app: signing out and an expired
+          // session both reach `/login` as a *client-side* navigation
+          // (a server action's `redirect()`), which changes the URL without
+          // loading a page — `onPageFinished` never fires for it, on WKWebView
+          // or WebView2. Without this the app missed both, and on macOS left
+          // the user on a web login screen whose Google sign-in cannot finish.
+          onUrlChange: (change) {
+            final url = change.url;
+            if (url != null) _handleArrival(url, via: 'url change');
+          },
           onWebResourceError: (error) =>
               AppLog.write(_tag, 'load error: ${error.description}'),
         ),
@@ -138,17 +158,42 @@ class _DashboardViewState extends State<DashboardView> {
   FutureOr<NavigationDecision> _handleNavigation(NavigationRequest request) {
     if (Platform.isWindows) return NavigationDecision.navigate;
 
+    // Only a top-level page leaving for another web host goes to the browser.
+    // Frames load whatever they embed, and `about:blank`/`blob:`/`data:` have
+    // no host at all — sending those out opened stray browser tabs and
+    // blocked the page from doing its own work.
+    if (!request.isMainFrame) return NavigationDecision.navigate;
     final uri = Uri.tryParse(request.url);
-    if (uri != null && uri.host != tideHost) {
+    final isWeb = uri != null && (uri.scheme == 'https' || uri.scheme == 'http');
+    if (isWeb && uri.host != tideHost) {
       launchUrl(uri, mode: LaunchMode.externalApplication);
       return NavigationDecision.prevent;
     }
     return NavigationDecision.navigate;
   }
 
-  void _handlePageFinished(String url) {
+  void _handlePageFinished(String url) => _handleArrival(url, via: 'loaded');
+
+  /// Reacts to the webview arriving at [url], however it got there.
+  void _handleArrival(String url, {required String via}) {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
+
+    final isLoginPage = uri.host == tideHost && uri.path == loginPath;
+    if (!isLoginPage) {
+      _onLoginPage = false;
+      if (via == 'url change') return;
+      // A page actually finished loading — the next trip to the login page
+      // deserves its own retry. `/auth/*` doesn't count: those only redirect,
+      // and an expired one-time URL passes through `/auth/callback` on its
+      // way back to the login page.
+      if (uri.host == tideHost && !uri.path.startsWith('/auth/')) {
+        _retriedAfterLogin = false;
+      }
+    } else {
+      if (_onLoginPage) return;
+      _onLoginPage = true;
+    }
 
     final signedOut = uri.queryParameters.containsKey(signedOutParam);
     // 🔑 Host and path only — never the query. One of the URLs that arrives
@@ -157,10 +202,10 @@ class _DashboardViewState extends State<DashboardView> {
     // marker worth having is added by name, not by copying what was there.
     AppLog.write(
       _tag,
-      'loaded ${uri.host}${uri.path}${signedOut ? ' (signed out)' : ''}',
+      '$via ${uri.host}${uri.path}${signedOut ? ' (signed out)' : ''}',
     );
 
-    if (uri.host != tideHost || uri.path != loginPath) return;
+    if (!isLoginPage) return;
 
     // The user pressed 로그아웃 in the dashboard, or deleted their account.
     //
@@ -175,14 +220,28 @@ class _DashboardViewState extends State<DashboardView> {
       return;
     }
 
-    // No marker: the webview's own cookies merely expired, and the app's
-    // session may still be perfectly good. Trade it for a fresh one-time URL
-    // rather than making the user sign in a second time.
-    if (!_retriedAfterLogin) {
-      _retriedAfterLogin = true;
-      AppLog.write(_tag, 'webview session expired — re-bridging');
-      _open(dashboardPath);
+    _recoverFromLoginPage();
+  }
+
+  /// The webview's own cookies merely expired, and the app's session may
+  /// still be perfectly good — trade it for a fresh one-time URL rather than
+  /// making the user sign in a second time.
+  ///
+  /// 🔑 When the app has no session left either (a refresh was rejected, or
+  /// the stored one could not be read), the web login page is **not** a
+  /// place to leave the user: on macOS its Google sign-in cannot finish in a
+  /// WKWebView. The app's own login screen is the one that works, so go
+  /// there — the same exit as a sign-out.
+  Future<void> _recoverFromLoginPage() async {
+    if (!await AuthService().hasSession()) {
+      AppLog.write(_tag, 'no app session either — back to the app login screen');
+      widget.onSignedOut();
+      return;
     }
+    if (_retriedAfterLogin) return;
+    _retriedAfterLogin = true;
+    AppLog.write(_tag, 'webview session expired — re-bridging');
+    await _open(dashboardPath);
   }
 
   /// Opens a service path, signed in.
@@ -196,7 +255,6 @@ class _DashboardViewState extends State<DashboardView> {
     if (controller == null) return;
 
     AppLog.write(_tag, 'opening $path');
-    if (path != loginPath) _retriedAfterLogin = false;
 
     final signedIn = await _webSession.signedInUrl(next: path);
     try {

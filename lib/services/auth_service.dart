@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -40,7 +39,7 @@ class AuthService {
       if (raw == null) return null;
       return AuthSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (e) {
-      debugPrint('AuthService: failed to load session: $e');
+      log('failed to load session: $e');
       return null;
     }
   }
@@ -165,6 +164,7 @@ class AuthService {
     });
     if (error != null) {
       // A rejected refresh means the whole session is gone.
+      log('refresh rejected — dropping the stored session: $error');
       await signOut();
       return null;
     }
@@ -184,7 +184,11 @@ class AuthService {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode != 200) {
-        final message = (json['error'] as Map<String, dynamic>?)?['message'] as String?;
+        final error = json['error'] as Map<String, dynamic>?;
+        // Code and message only — the request and response both carry tokens.
+        log('token exchange (${body['grantType']}) failed: '
+            '${response.statusCode} ${error?['code']}');
+        final message = error?['message'] as String?;
         return message ?? '로그인에 실패했습니다.';
       }
 
@@ -192,7 +196,7 @@ class AuthService {
       await _saveSession(session);
       return null;
     } catch (e) {
-      debugPrint('AuthService: token exchange failed: $e');
+      log('token exchange (${body['grantType']}) failed: $e');
       return '네트워크 오류로 로그인하지 못했습니다.';
     }
   }
